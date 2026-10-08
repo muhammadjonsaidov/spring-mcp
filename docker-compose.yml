@@ -1,0 +1,21 @@
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    container_name: salesdoctor-postgres
+    environment:
+      POSTGRES_DB: salesdoctor_db
+      POSTGRES_USER: salesdoctor
+      POSTGRES_PASSWORD: salesdoctor_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/18/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U salesdoctor -d salesdoctor_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

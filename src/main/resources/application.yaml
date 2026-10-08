@@ -1,0 +1,45 @@
+
+
+spring:
+  application:
+    name: spring-mcp
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/salesdoctor_db
+    username: salesdoctor
+    password: salesdoctor_pass
+    driver-class-name: org.postgresql.Driver
+
+  jooq:
+    sql-dialect: postgres
+
+  flyway:
+    community-db-support-enabled: true
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    default-schema: public
+
+  ai:
+    mcp:
+      server:
+        name: salesdoctor-mcp
+        version: 1.0.0
+        instructions: "SalesDoctor vazifalar va savdo ma'lumotlari uchun MCP server"
+        protocol: streamable
+        type: sync
+        capabilities:
+          tool: true
+          resource: true
+          prompt: true
+          completion: true
+        annotation-scanner:
+          enabled: true
+        request-timeout: 30s
+        streamable-http:
+          mcp-endpoint: /mcp
+          keep-alive-interval: 30s
+server:
+  port: 8888
+
+
