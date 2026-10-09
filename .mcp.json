@@ -2,7 +2,10 @@
   "mcpServers": {
     "salesdoctor-mcp": {
       "type": "http",
-      "url": "http://localhost:8888/mcp"
+      "url": "http://localhost:8888/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SALESDOCTOR_MCP_TOKEN}"
+      }
     }
   }
 }

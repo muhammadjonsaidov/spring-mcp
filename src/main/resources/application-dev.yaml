@@ -1,0 +1,25 @@
+# Lokal ishlab chiqish: docker-compose.yml dagi Postgres, oddiy matnli loglar, batafsil xatolar
+spring:
+  datasource:
+    # .env / docker-compose.yml bilan bir xil qismlardan; SALESDOCTOR_DB_URL berilsa u ustun
+    url: ${SALESDOCTOR_DB_URL:jdbc:postgresql://${SALESDOCTOR_DB_HOST:localhost}:${SALESDOCTOR_DB_PORT:5432}/${SALESDOCTOR_DB_NAME:salesdoctor_db}}
+    username: ${SALESDOCTOR_DB_USER:salesdoctor}
+    password: ${SALESDOCTOR_DB_PASSWORD:salesdoctor_pass}
+
+salesdoctor:
+  security:
+    jwt:
+      # Faqat lokal uchun (TokenCli --dev ham shu kalitni ishlatadi). Prod'da env orqali beriladi.
+      secret: ${SALESDOCTOR_JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
+  errors:
+    expose-internal-details: true
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
+logging:
+  level:
+    salesdoctor.mcp.calls: INFO

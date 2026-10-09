@@ -1,13 +1,20 @@
-
-
+# Umumiy sozlamalar. Muhitga xos qiymatlar: application-dev.yaml / application-prod.yaml
 spring:
   application:
     name: spring-mcp
 
+  profiles:
+    # SPRING_PROFILES_ACTIVE berilmasa lokal ishlab chiqish rejimi
+    default: dev
+
+  config:
+    # Ishga tushirilgan papkadagi .env (KEY=value). Haqiqiy muhit o'zgaruvchilari undan ustun.
+    import: optional:file:.env[.properties]
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/salesdoctor_db
-    username: salesdoctor
-    password: salesdoctor_pass
+    url: ${SALESDOCTOR_DB_URL}
+    username: ${SALESDOCTOR_DB_USER}
+    password: ${SALESDOCTOR_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       # Sana bo'yicha so'rovlar (created_at::date) AppTime.ZONE bilan bir xil kunni bersin
@@ -43,7 +50,30 @@ spring:
         streamable-http:
           mcp-endpoint: /mcp
           keep-alive-interval: 30s
+
 server:
-  port: 8888
+  port: ${SERVER_PORT:8888}
 
+salesdoctor:
+  security:
+    jwt:
+      secret: ${SALESDOCTOR_JWT_SECRET:}
+      issuer: ${SALESDOCTOR_JWT_ISSUER:salesdoctor-mcp}
+  errors:
+    # true bo'lsa INTERNAL_ERROR javobida asl xabar ko'rsatiladi (SQL va h.k. sizib chiqishi mumkin)
+    expose-internal-details: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+      show-components: when-authorized
+  info:
+    java:
+      enabled: true

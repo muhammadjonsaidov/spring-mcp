@@ -5,11 +5,14 @@ import io.salesdoctor.spring_mcp.domain.OrderStatus;
 import io.salesdoctor.spring_mcp.domain.PaymentMethod;
 import io.salesdoctor.spring_mcp.domain.ReturnStatus;
 import io.salesdoctor.spring_mcp.dto.*;
+import io.salesdoctor.spring_mcp.error.ErrorCode;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.mcp.*;
 import io.salesdoctor.spring_mcp.support.AppTime;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.ThrowingConsumer;
 import org.springframework.ai.util.JsonHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -126,12 +129,12 @@ class BusinessRulesIntegrationTest {
                 .hasMessageContaining(OrderStatus.ALLOWED);
         assertThat(orders.updateOrderStatus(orderId, "DELIVERED").status()).isEqualTo(OrderStatus.DELIVERED);
         assertThatThrownBy(() -> orders.updateOrderStatus(orderId, "CANCELLED"))
-                .isInstanceOf(IllegalStateException.class);
+                .satisfies(hasCode(ErrorCode.CONFLICT));
     }
 
     @Test
     void notFoundIsAnError() {
-        assertThatThrownBy(() -> orders.getOrder(999_999L)).hasMessageContaining("topilmadi");
+        assertThatThrownBy(() -> orders.getOrder(999_999L)).satisfies(hasCode(ErrorCode.NOT_FOUND));
         assertThatThrownBy(() -> customers.getCustomer(999_999L)).hasMessageContaining("topilmadi");
         assertThat(orders.listOrdersByCustomer(999_999L)).isEmpty();
     }
@@ -174,7 +177,7 @@ class BusinessRulesIntegrationTest {
         assertThatThrownBy(() -> payments.acceptPayment(customerId, orderId, new BigDecimal("70000"), null, ALI))
                 .hasMessageContaining("qarzidan katta");
         assertThatThrownBy(() -> payments.acceptPayment(otherCustomer, orderId, new BigDecimal("1000"), null, ALI))
-                .isInstanceOf(IllegalArgumentException.class);
+                .satisfies(hasCode(ErrorCode.INVALID_ARGUMENT));
         assertThatThrownBy(() -> payments.acceptPayment(customerId, orderId, BigDecimal.TEN, "bitcoin", ALI))
                 .hasMessageContaining(PaymentMethod.ALLOWED);
 
@@ -222,7 +225,7 @@ class BusinessRulesIntegrationTest {
         assertThat(approved.resolvedAt()).isNotNull();
 
         assertThatThrownBy(() -> returns.approveReturn(created.id())).hasMessageContaining("Hozirgi holat: APPROVED");
-        assertThatThrownBy(() -> returns.rejectReturn(created.id(), null)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> returns.rejectReturn(created.id(), null)).satisfies(hasCode(ErrorCode.CONFLICT));
 
         assertThat(warehouseQty(COLA)).isEqualTo(warehouseBefore + 2);
         assertThat(debt(customerId)).isEqualByComparingTo("36000");
@@ -320,6 +323,11 @@ class BusinessRulesIntegrationTest {
     }
 
     // --- Yordamchilar ---
+
+    static ThrowingConsumer<Throwable> hasCode(ErrorCode code) {
+        return e -> assertThat(e).isInstanceOfSatisfying(ToolException.class,
+                te -> assertThat(te.code()).isEqualTo(code));
+    }
 
     private int agentQty(long productId, long agentId) {
         return dsl.select(STOCK.QUANTITY).from(STOCK)

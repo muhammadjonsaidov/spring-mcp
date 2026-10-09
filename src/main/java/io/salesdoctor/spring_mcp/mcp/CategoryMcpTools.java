@@ -2,6 +2,7 @@ package io.salesdoctor.spring_mcp.mcp;
 
 import io.salesdoctor.spring_mcp.dto.CategoryDto;
 import io.salesdoctor.spring_mcp.dto.DeletedDto;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.repository.CategoryRepository;
 import io.salesdoctor.spring_mcp.support.Require;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -72,7 +73,7 @@ public class CategoryMcpTools {
             @McpToolParam(description = "Kategoriya ID si") Long id,
             @McpToolParam(description = "Yangi nom") String newName) {
         Require.notBlank(newName, "Kategoriya nomi bo'sh bo'lishi mumkin emas.");
-        Require.that(categoryRepository.rename(id, newName) > 0, "Kategoriya topilmadi: ID=" + id);
+        Require.affected(categoryRepository.rename(id, newName), "Kategoriya topilmadi: ID=" + id);
         return getCategory(id);
     }
 
@@ -83,7 +84,7 @@ public class CategoryMcpTools {
 
         int productCount = categoryRepository.countProducts(id);
         if (productCount > 0) {
-            throw new IllegalStateException("Bu kategoriyada " + productCount +
+            throw ToolException.conflict("Bu kategoriyada " + productCount +
                     " ta mahsulot bor. Avval ularni boshqa kategoriyaga o'tkazing.");
         }
 
@@ -91,9 +92,9 @@ public class CategoryMcpTools {
         try {
             deleted = categoryRepository.delete(id);
         } catch (DataIntegrityViolationException e) {
-            throw new IllegalStateException("Kategoriyani o'chirib bo'lmadi: ichki kategoriyalar mavjud. ID=" + id);
+            throw ToolException.conflict("Kategoriyani o'chirib bo'lmadi: ichki kategoriyalar mavjud. ID=" + id);
         }
-        Require.that(deleted > 0, "Kategoriya topilmadi: ID=" + id);
+        Require.affected(deleted, "Kategoriya topilmadi: ID=" + id);
         return new DeletedDto("category", id);
     }
 }

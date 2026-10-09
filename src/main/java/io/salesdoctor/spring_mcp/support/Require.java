@@ -1,7 +1,9 @@
 package io.salesdoctor.spring_mcp.support;
 
+import io.salesdoctor.spring_mcp.error.ToolException;
+
 /**
- * Tool'lardagi tekshiruvlar. Tashlangan istisnoni Spring AI isError = true javobga aylantiradi.
+ * Tool'lardagi tekshiruvlar. Tashlangan ToolException yagona xato formatiga aylantiriladi.
  */
 public final class Require {
 
@@ -9,18 +11,30 @@ public final class Require {
     }
 
     /**
-     * value null bo'lsa "... topilmadi" xatosini tashlaydi.
+     * value null bo'lsa NOT_FOUND.
      */
     public static <T> T found(T value, String message) {
         if (value == null) {
-            throw new IllegalArgumentException(message);
+            throw ToolException.notFound(message);
         }
         return value;
     }
 
+    /**
+     * Yangilangan/o'chirilgan qatorlar soni 0 bo'lsa NOT_FOUND.
+     */
+    public static void affected(int rows, String message) {
+        if (rows == 0) {
+            throw ToolException.notFound(message);
+        }
+    }
+
+    /**
+     * Shart bajarilmasa INVALID_ARGUMENT.
+     */
     public static void that(boolean condition, String message) {
         if (!condition) {
-            throw new IllegalArgumentException(message);
+            throw ToolException.invalid(message);
         }
     }
 

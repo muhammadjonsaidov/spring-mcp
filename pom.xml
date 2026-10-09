@@ -81,6 +81,15 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
@@ -112,6 +121,23 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<!-- /actuator/info uchun versiya va build vaqti -->
+						<goals>
+							<goal>build-info</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- JWT token yaratish: README dagi "Token yaratish" bo'limiga qarang -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>3.5.1</version>
+				<configuration>
+					<mainClass>io.salesdoctor.spring_mcp.security.TokenCli</mainClass>
+				</configuration>
 			</plugin>
 			<!-- jOOQ codegen'dan oldin turishi shart: bir xil fazada plaginlar pom tartibida ishlaydi.
 			     Shunda bo'sh (yangi) bazada ham build avval migratsiyalarni qo'llaydi. -->

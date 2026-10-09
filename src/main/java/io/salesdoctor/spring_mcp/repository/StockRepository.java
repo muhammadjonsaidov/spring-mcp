@@ -1,6 +1,7 @@
 package io.salesdoctor.spring_mcp.repository;
 
 import io.salesdoctor.spring_mcp.domain.StockLocation;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.jooq.tables.records.StockRecord;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
@@ -57,7 +58,7 @@ public class StockRepository {
         requirePositive(quantity);
         boolean productExists = dsl.fetchExists(PRODUCTS, PRODUCTS.ID.eq(productId));
         if (!productExists) {
-            throw new IllegalArgumentException("Mahsulot topilmadi: ID=" + productId);
+            throw ToolException.notFound("Mahsulot topilmadi: ID=" + productId);
         }
         upsertWarehouseStock(productId, quantity);
     }
@@ -135,10 +136,10 @@ public class StockRepository {
 
         StockRecord warehouse = getWarehouseStock(productId);
         if (warehouse == null) {
-            throw new IllegalStateException("Asosiy omborda bu mahsulot yo'q: productId=" + productId);
+            throw ToolException.conflict("Asosiy omborda bu mahsulot yo'q: productId=" + productId);
         }
         if (decreaseWarehouseStock(productId, quantity) == 0) {
-            throw new IllegalStateException(String.format(
+            throw ToolException.conflict(String.format(
                     "Asosiy omborda yetarli mahsulot yo'q. Mavjud: %d, kerak: %d",
                     warehouse.getQuantity(), quantity));
         }
@@ -154,11 +155,11 @@ public class StockRepository {
 
         StockRecord agentStock = getAgentStock(productId, agentId);
         if (agentStock == null) {
-            throw new IllegalStateException(String.format(
+            throw ToolException.conflict(String.format(
                     "Agentda bu mahsulot yo'q. productId=%d, agentId=%d", productId, agentId));
         }
         if (decreaseAgentStock(productId, agentId, quantity) == 0) {
-            throw new IllegalStateException(String.format(
+            throw ToolException.conflict(String.format(
                     "Agentda yetarli mahsulot yo'q. Mavjud: %d, kerak: %d",
                     agentStock.getQuantity(), quantity));
         }
@@ -181,16 +182,16 @@ public class StockRepository {
     private void requireActiveAgent(Long agentId) {
         var agent = dsl.selectFrom(AGENTS).where(AGENTS.ID.eq(agentId)).fetchOne();
         if (agent == null) {
-            throw new IllegalArgumentException("Agent topilmadi: ID=" + agentId);
+            throw ToolException.notFound("Agent topilmadi: ID=" + agentId);
         }
         if (!Boolean.TRUE.equals(agent.getIsActive())) {
-            throw new IllegalStateException("Agent faol emas: ID=" + agentId);
+            throw ToolException.conflict("Agent faol emas: ID=" + agentId);
         }
     }
 
     private static void requirePositive(int quantity) {
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Miqdor 0 dan katta bo'lishi kerak.");
+            throw ToolException.invalid("Miqdor 0 dan katta bo'lishi kerak.");
         }
     }
 

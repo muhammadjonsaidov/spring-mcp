@@ -4,8 +4,9 @@ import io.salesdoctor.spring_mcp.domain.OrderStatus;
 import io.salesdoctor.spring_mcp.dto.OrderDetailsDto;
 import io.salesdoctor.spring_mcp.dto.OrderDto;
 import io.salesdoctor.spring_mcp.dto.OrderItemDto;
-import io.salesdoctor.spring_mcp.repository.OrderRepository;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.repository.OrderRepository.OrderItemInput;
+import io.salesdoctor.spring_mcp.repository.OrderRepository;
 import io.salesdoctor.spring_mcp.support.AppTime;
 import io.salesdoctor.spring_mcp.support.Require;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -101,7 +102,7 @@ public class OrderMcpTools {
         for (String pair : csv.split(",")) {
             String[] parts = pair.trim().split(":");
             if (parts.length != 2) {
-                throw new IllegalArgumentException("Noto'g'ri format: '" + pair + "'. Kutilgan format: productId:quantity");
+                throw ToolException.invalid("Noto'g'ri format: '" + pair + "'. Kutilgan format: productId:quantity");
             }
 
             long productId;
@@ -110,10 +111,10 @@ public class OrderMcpTools {
                 productId = Long.parseLong(parts[0].trim());
                 quantity = Integer.parseInt(parts[1].trim());
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Noto'g'ri son: '" + pair + "'. Kutilgan format: productId:quantity");
+                throw ToolException.invalid("Noto'g'ri son: '" + pair + "'. Kutilgan format: productId:quantity");
             }
             if (quantity <= 0) {
-                throw new IllegalArgumentException("Miqdor 0 dan katta bo'lishi kerak: '" + pair + "'");
+                throw ToolException.invalid("Miqdor 0 dan katta bo'lishi kerak: '" + pair + "'");
             }
             items.add(new OrderItemInput(productId, quantity));
         }

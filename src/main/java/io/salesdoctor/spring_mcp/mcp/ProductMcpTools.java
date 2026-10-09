@@ -2,6 +2,7 @@ package io.salesdoctor.spring_mcp.mcp;
 
 import io.salesdoctor.spring_mcp.dto.DeletedDto;
 import io.salesdoctor.spring_mcp.dto.ProductDto;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.repository.CategoryRepository;
 import io.salesdoctor.spring_mcp.repository.ProductRepository;
 import io.salesdoctor.spring_mcp.support.Require;
@@ -35,7 +36,9 @@ public class ProductMcpTools {
         Require.notBlank(sku, "SKU bo'sh bo'lishi mumkin emas.");
         Require.that(price != null && price.signum() >= 0, "Narx noto'g'ri: " + price);
         requireCategory(categoryId);
-        Require.that(productRepository.findBySku(sku) == null, "Bu SKU bilan mahsulot allaqachon mavjud: " + sku);
+        if (productRepository.findBySku(sku) != null) {
+            throw ToolException.conflict("Bu SKU bilan mahsulot allaqachon mavjud: " + sku);
+        }
 
         return ProductDto.from(productRepository.createProduct(name, sku, price, categoryId));
     }
@@ -77,7 +80,7 @@ public class ProductMcpTools {
             @McpToolParam(description = "Yangi narx") BigDecimal newPrice
     ) {
         Require.that(newPrice != null && newPrice.signum() >= 0, "Yangi narx noto'g'ri: " + newPrice);
-        Require.that(productRepository.updatePrice(id, newPrice) > 0, "Mahsulot topilmadi: ID=" + id);
+        Require.affected(productRepository.updatePrice(id, newPrice), "Mahsulot topilmadi: ID=" + id);
         return getProductById(id);
     }
 
@@ -88,7 +91,7 @@ public class ProductMcpTools {
             @McpToolParam(description = "Kategoriya ID si (ixtiyoriy)", required = false) Long categoryId
     ) {
         requireCategory(categoryId);
-        Require.that(productRepository.updateCategory(id, categoryId) > 0, "Mahsulot topilmadi: ID=" + id);
+        Require.affected(productRepository.updateCategory(id, categoryId), "Mahsulot topilmadi: ID=" + id);
         return getProductById(id);
     }
 
@@ -97,7 +100,7 @@ public class ProductMcpTools {
     public DeletedDto deleteProduct(
             @McpToolParam(description = "Mahsulot ID si") Long id
     ) {
-        Require.that(productRepository.softDelete(id) > 0, "Mahsulot topilmadi: ID=" + id);
+        Require.affected(productRepository.softDelete(id), "Mahsulot topilmadi: ID=" + id);
         return new DeletedDto("product", id);
     }
 

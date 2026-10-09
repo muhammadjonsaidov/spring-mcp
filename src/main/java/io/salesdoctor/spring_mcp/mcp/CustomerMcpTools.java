@@ -67,7 +67,7 @@ public class CustomerMcpTools {
             @McpToolParam(description = "Yangi qarz summasi (0 yoki katta)") BigDecimal newDebt
     ) {
         Require.that(newDebt != null && newDebt.signum() >= 0, "Qarz summasi noto'g'ri: " + newDebt);
-        Require.that(customerRepository.updateDebt(id, newDebt) > 0, "Mijoz topilmadi: ID=" + id);
+        Require.affected(customerRepository.updateDebt(id, newDebt), "Mijoz topilmadi: ID=" + id);
         return getCustomer(id);
     }
 
@@ -76,7 +76,7 @@ public class CustomerMcpTools {
     public DeletedDto deleteCustomer(
             @McpToolParam(description = "Mijoz ID si") Long id
     ) {
-        Require.that(customerRepository.softDelete(id) > 0, "Mijoz topilmadi: ID=" + id);
+        Require.affected(customerRepository.softDelete(id), "Mijoz topilmadi: ID=" + id);
         return new DeletedDto("customer", id);
     }
 }

@@ -1,6 +1,7 @@
 package io.salesdoctor.spring_mcp.repository;
 
 import io.salesdoctor.spring_mcp.domain.PaymentMethod;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.jooq.tables.records.PaymentsRecord;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
@@ -32,7 +33,7 @@ public class PaymentRepository {
             String paymentMethod, Long agentId
     ) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("To'lov miqdori 0 dan katta bo'lishi kerak.");
+            throw ToolException.invalid("To'lov miqdori 0 dan katta bo'lishi kerak.");
         }
 
         PaymentMethod method = PaymentMethod.parseOrDefault(paymentMethod);
@@ -40,38 +41,38 @@ public class PaymentRepository {
         // Qator qulflanadi: bir vaqtdagi to'lovlar qarzni navbat bilan kamaytiradi
         var customer = customerRepository.findByIdForUpdate(customerId);
         if (customer == null) {
-            throw new IllegalArgumentException("Mijoz topilmadi: ID=" + customerId);
+            throw ToolException.notFound("Mijoz topilmadi: ID=" + customerId);
         }
 
         BigDecimal currentDebt = customer.getDebtAmount() == null
                 ? BigDecimal.ZERO
                 : customer.getDebtAmount();
         if (amount.compareTo(currentDebt) > 0) {
-            throw new IllegalArgumentException(
+            throw ToolException.invalid(
                     "To'lov summasi mijoz qarzidan katta: to'lov=" + amount + ", qarz=" + currentDebt);
         }
 
         if (orderId != null) {
             var order = dsl.selectFrom(ORDERS).where(ORDERS.ID.eq(orderId)).fetchOne();
             if (order == null) {
-                throw new IllegalArgumentException("Buyurtma topilmadi: ID=" + orderId);
+                throw ToolException.notFound("Buyurtma topilmadi: ID=" + orderId);
             }
             if (!order.getCustomerId().equals(customerId)) {
-                throw new IllegalArgumentException(
+                throw ToolException.invalid(
                         "Buyurtma bu mijozga tegishli emas: orderId=" + orderId + ", customerId=" + customerId);
             }
             if (!order.getStatus().isActive()) {
-                throw new IllegalStateException("Bekor qilingan buyurtmaga to'lov qabul qilinmaydi: ID=" + orderId);
+                throw ToolException.conflict("Bekor qilingan buyurtmaga to'lov qabul qilinmaydi: ID=" + orderId);
             }
             BigDecimal remaining = order.getTotalAmount().subtract(totalPaidForOrder(orderId));
             if (amount.compareTo(remaining) > 0) {
-                throw new IllegalArgumentException(
+                throw ToolException.invalid(
                         "To'lov summasi buyurtma qoldig'idan katta: to'lov=" + amount + ", qoldiq=" + remaining);
             }
         }
 
         if (agentId != null && !dsl.fetchExists(AGENTS, AGENTS.ID.eq(agentId))) {
-            throw new IllegalArgumentException("Agent topilmadi: ID=" + agentId);
+            throw ToolException.notFound("Agent topilmadi: ID=" + agentId);
         }
 
         PaymentsRecord payment = dsl.insertInto(PAYMENTS)

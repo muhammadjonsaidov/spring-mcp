@@ -2,6 +2,7 @@ package io.salesdoctor.spring_mcp.mcp;
 
 import io.salesdoctor.spring_mcp.domain.AgentRole;
 import io.salesdoctor.spring_mcp.dto.AgentDto;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.repository.AgentRepository;
 import io.salesdoctor.spring_mcp.repository.TerritoryRepository;
 import io.salesdoctor.spring_mcp.support.Require;
@@ -37,8 +38,9 @@ public class AgentsMcpTools {
             Require.found(territoryRepository.findById(territoryId), "Hudud topilmadi: ID=" + territoryId);
         }
         if (email != null && !email.isBlank()) {
-            Require.that(agentRepository.findByEmail(email) == null,
-                    "Bu email bilan agent allaqachon mavjud: " + email);
+            if (agentRepository.findByEmail(email) != null) {
+                throw ToolException.conflict("Bu email bilan agent allaqachon mavjud: " + email);
+            }
         }
 
         return AgentDto.from(agentRepository.create(fullName, phone, email, agentRole, territoryId));
@@ -92,7 +94,7 @@ public class AgentsMcpTools {
             @McpToolParam(description = "Agent ID si") Long agentId,
             @McpToolParam(description = "Yangi hudud ID si") Long territoryId) {
         Require.found(territoryRepository.findById(territoryId), "Hudud topilmadi: ID=" + territoryId);
-        Require.that(agentRepository.updateTerritory(agentId, territoryId) > 0, "Agent topilmadi: ID=" + agentId);
+        Require.affected(agentRepository.updateTerritory(agentId, territoryId), "Agent topilmadi: ID=" + agentId);
         return getAgent(agentId);
     }
 
@@ -103,7 +105,7 @@ public class AgentsMcpTools {
             @McpToolParam(description = "Yangi rol: " + AgentRole.ALLOWED) String newRole
     ) {
         AgentRole role = AgentRole.parse(newRole);
-        Require.that(agentRepository.updateRole(agentId, role) > 0, "Agent topilmadi: ID=" + agentId);
+        Require.affected(agentRepository.updateRole(agentId, role), "Agent topilmadi: ID=" + agentId);
         return getAgent(agentId);
     }
 
@@ -111,7 +113,7 @@ public class AgentsMcpTools {
             description = "Agentni faolsizlantiradi (soft delete)")
     public AgentDto deactivateAgent(
             @McpToolParam(description = "Agent ID si") Long id) {
-        Require.that(agentRepository.deactivate(id) > 0, "Agent topilmadi: ID=" + id);
+        Require.affected(agentRepository.deactivate(id), "Agent topilmadi: ID=" + id);
         return getAgent(id);
     }
 }

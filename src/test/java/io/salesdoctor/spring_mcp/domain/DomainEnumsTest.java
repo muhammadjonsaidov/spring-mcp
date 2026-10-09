@@ -1,5 +1,6 @@
 package io.salesdoctor.spring_mcp.domain;
 
+import io.salesdoctor.spring_mcp.error.ToolException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,10 +46,10 @@ class DomainEnumsTest {
         assertThat(AgentRole.parseOrDefault("")).isEqualTo(AgentRole.AGENT);
 
         assertThatThrownBy(() -> AgentRole.parse("xyz"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ToolException.class)
                 .hasMessageContaining("AGENT, SUPERVISOR, EXPEDITOR");
         assertThatThrownBy(() -> OrderStatus.parse(null))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(ToolException.class);
     }
 
     @Test

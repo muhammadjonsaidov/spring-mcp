@@ -1,6 +1,7 @@
 package io.salesdoctor.spring_mcp.repository;
 
 import io.salesdoctor.spring_mcp.domain.ReturnStatus;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.jooq.tables.records.ReturnsRecord;
 import io.salesdoctor.spring_mcp.support.AppTime;
 import org.jooq.DSLContext;
@@ -50,23 +51,23 @@ public class ReturnRepository {
                                       Long agentId) {
 
         if (quantity == null || quantity <= 0) {
-            throw new IllegalArgumentException("Miqdor 0 dan katta bo'lishi kerak.");
+            throw ToolException.invalid("Miqdor 0 dan katta bo'lishi kerak.");
         }
         if (amount != null && amount.signum() < 0) {
-            throw new IllegalArgumentException("Summa manfiy bo'lishi mumkin emas.");
+            throw ToolException.invalid("Summa manfiy bo'lishi mumkin emas.");
         }
         if (productId == null) {
-            throw new IllegalArgumentException("Mahsulot ID si ko'rsatilishi kerak.");
+            throw ToolException.invalid("Mahsulot ID si ko'rsatilishi kerak.");
         }
 
         var customer = customerRepository.findById(customerId);
         if (customer == null) {
-            throw new IllegalArgumentException("Mijoz topilmadi: ID=" + customerId);
+            throw ToolException.notFound("Mijoz topilmadi: ID=" + customerId);
         }
 
         var product = dsl.selectFrom(PRODUCTS).where(PRODUCTS.ID.eq(productId)).fetchOne();
         if (product == null) {
-            throw new IllegalArgumentException("Mahsulot topilmadi: ID=" + productId);
+            throw ToolException.notFound("Mahsulot topilmadi: ID=" + productId);
         }
 
         BigDecimal unitPrice;
@@ -78,14 +79,14 @@ public class ReturnRepository {
                     .forUpdate()
                     .fetchOne();
             if (order == null) {
-                throw new IllegalArgumentException("Buyurtma topilmadi: ID=" + orderId);
+                throw ToolException.notFound("Buyurtma topilmadi: ID=" + orderId);
             }
             if (!order.getCustomerId().equals(customerId)) {
-                throw new IllegalArgumentException(
+                throw ToolException.invalid(
                         "Buyurtma bu mijozga tegishli emas: orderId=" + orderId + ", customerId=" + customerId);
             }
             if (!order.getStatus().allowsReturns()) {
-                throw new IllegalStateException(
+                throw ToolException.conflict(
                         "Faqat yetkazilgan (DELIVERED) buyurtma bo'yicha qaytarish mumkin. Holat: " + order.getStatus());
             }
 
@@ -94,14 +95,14 @@ public class ReturnRepository {
                     .and(ORDER_ITEMS.PRODUCT_ID.eq(productId))
                     .fetchOne();
             if (item == null) {
-                throw new IllegalArgumentException(
+                throw ToolException.invalid(
                         "Bu mahsulot buyurtmada yo'q: orderId=" + orderId + ", productId=" + productId);
             }
 
             int alreadyReturned = returnedQuantity(orderId, productId);
             int available = item.getQuantity() - alreadyReturned;
             if (quantity > available) {
-                throw new IllegalArgumentException(String.format(
+                throw ToolException.invalid(String.format(
                         "Qaytariladigan miqdor ko'p: buyurtmada %d, avval qaytarilgan %d, mumkin %d",
                         item.getQuantity(), alreadyReturned, available));
             }
@@ -119,13 +120,13 @@ public class ReturnRepository {
         }
 
         if (returnAgentId != null && !dsl.fetchExists(AGENTS, AGENTS.ID.eq(returnAgentId))) {
-            throw new IllegalArgumentException("Agent topilmadi: ID=" + returnAgentId);
+            throw ToolException.notFound("Agent topilmadi: ID=" + returnAgentId);
         }
 
         BigDecimal maxAmount = unitPrice.multiply(BigDecimal.valueOf(quantity));
         BigDecimal returnAmount = amount == null ? maxAmount : amount;
         if (returnAmount.compareTo(maxAmount) > 0) {
-            throw new IllegalArgumentException(
+            throw ToolException.invalid(
                     "Qaytarish summasi mahsulot qiymatidan katta: summa=" + returnAmount + ", maksimal=" + maxAmount);
         }
 
@@ -266,9 +267,9 @@ public class ReturnRepository {
     private RuntimeException notTransitionable(Long returnId, ReturnStatus target, String action) {
         ReturnsRecord existing = findById(returnId);
         if (existing == null) {
-            return new IllegalArgumentException("Qaytarish topilmadi: ID=" + returnId);
+            return ToolException.notFound("Qaytarish topilmadi: ID=" + returnId);
         }
-        return new IllegalStateException(
+        return ToolException.conflict(
                 "Faqat " + sourcesOf(target) + " holatidagi qaytarishni " + action +
                         " mumkin. Hozirgi holat: " + existing.getStatus());
     }

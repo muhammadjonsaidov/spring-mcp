@@ -1,5 +1,7 @@
 package io.salesdoctor.spring_mcp.support;
 
+import io.salesdoctor.spring_mcp.error.ToolException;
+
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -27,14 +29,14 @@ public final class AppTime {
     /**
      * YYYY-MM-DD formatidagi sanani o'qiydi; bo'sh bo'lsa defaultValue qaytaradi.
      *
-     * @throws IllegalArgumentException sana noto'g'ri formatda bo'lsa
+     * @throws ToolException sana noto'g'ri formatda bo'lsa
      */
     public static LocalDate parseDate(String value, LocalDate defaultValue) {
         if (value == null || value.isBlank()) return defaultValue;
         try {
             return LocalDate.parse(value.trim());
         } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException(
+            throw ToolException.invalid(
                     "Sana noto'g'ri formatda: '" + value + "'. Kutilgan format: YYYY-MM-DD");
         }
     }

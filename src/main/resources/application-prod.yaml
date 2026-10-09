@@ -1,0 +1,26 @@
+# Production: barcha maxfiy qiymatlar faqat muhit o'zgaruvchilaridan
+#   SALESDOCTOR_DB_URL, SALESDOCTOR_DB_USER, SALESDOCTOR_DB_PASSWORD, SALESDOCTOR_JWT_SECRET (majburiy)
+spring:
+  docker:
+    compose:
+      # Lokal docker-compose'ni avtomatik ko'tarmaslik
+      enabled: false
+  datasource:
+    hikari:
+      maximum-pool-size: ${SALESDOCTOR_DB_POOL_SIZE:10}
+
+server:
+  shutdown: graceful
+
+salesdoctor:
+  errors:
+    expose-internal-details: false
+
+logging:
+  structured:
+    # JSON (Elastic Common Schema): MDC (traceId, tool, caller) va key-value'lar alohida maydon bo'ladi
+    format:
+      console: ecs
+  level:
+    root: INFO
+    salesdoctor.mcp.calls: INFO

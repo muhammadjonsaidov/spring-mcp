@@ -3,6 +3,7 @@ package io.salesdoctor.spring_mcp.mcp;
 import io.salesdoctor.spring_mcp.dto.DeletedDto;
 import io.salesdoctor.spring_mcp.dto.KpiProgressDto;
 import io.salesdoctor.spring_mcp.dto.KpiTargetDto;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.jooq.tables.records.KpiTargetsRecord;
 import io.salesdoctor.spring_mcp.repository.AgentRepository;
 import io.salesdoctor.spring_mcp.repository.KpiTargetRepository;
@@ -47,7 +48,7 @@ public class KpiTargetMcpTools {
 
         KpiTargetsRecord overlapping = kpiTargetRepository.findOverlapping(agentId, start, end);
         if (overlapping != null) {
-            throw new IllegalStateException(String.format(
+            throw ToolException.conflict(String.format(
                     "Bu davr agentning mavjud maqsadi bilan kesishadi (ID=%d, %s — %s). " +
                             "Yangilash uchun updateKpiTargetAmount ishlatilsin.",
                     overlapping.getId(), overlapping.getPeriodStart(), overlapping.getPeriodEnd()));
@@ -104,7 +105,7 @@ public class KpiTargetMcpTools {
 
         Require.that(achievedAmount != null && achievedAmount.signum() >= 0,
                 "Achieved summasi manfiy bo'lishi mumkin emas.");
-        Require.that(kpiTargetRepository.setAchievedAmount(kpiId, achievedAmount) > 0, "KPI topilmadi: ID=" + kpiId);
+        Require.affected(kpiTargetRepository.setAchievedAmount(kpiId, achievedAmount), "KPI topilmadi: ID=" + kpiId);
         return getKpiTarget(kpiId);
     }
 
@@ -115,7 +116,7 @@ public class KpiTargetMcpTools {
             @McpToolParam(description = "Yangi maqsad summasi (0 dan katta)") BigDecimal newTarget) {
 
         Require.that(newTarget != null && newTarget.signum() > 0, "Maqsad summasi 0 dan katta bo'lishi kerak.");
-        Require.that(kpiTargetRepository.updateTargetAmount(kpiId, newTarget) > 0, "KPI topilmadi: ID=" + kpiId);
+        Require.affected(kpiTargetRepository.updateTargetAmount(kpiId, newTarget), "KPI topilmadi: ID=" + kpiId);
         return getKpiTarget(kpiId);
     }
 
@@ -123,7 +124,7 @@ public class KpiTargetMcpTools {
             description = "KPI maqsadni o'chiradi")
     public DeletedDto deleteKpiTarget(
             @McpToolParam(description = "KPI ID si") Long kpiId) {
-        Require.that(kpiTargetRepository.delete(kpiId) > 0, "KPI topilmadi: ID=" + kpiId);
+        Require.affected(kpiTargetRepository.delete(kpiId), "KPI topilmadi: ID=" + kpiId);
         return new DeletedDto("kpiTarget", kpiId);
     }
 }

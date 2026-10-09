@@ -2,6 +2,7 @@ package io.salesdoctor.spring_mcp.mcp;
 
 import io.salesdoctor.spring_mcp.dto.DeletedDto;
 import io.salesdoctor.spring_mcp.dto.TerritoryDto;
+import io.salesdoctor.spring_mcp.error.ToolException;
 import io.salesdoctor.spring_mcp.repository.TerritoryRepository;
 import io.salesdoctor.spring_mcp.support.Require;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -68,7 +69,7 @@ public class TerritoryMcpTools {
             @McpToolParam(description = "Yangi nom") String newName
     ) {
         Require.notBlank(newName, "Hudud nomi bo'sh bo'lishi mumkin emas.");
-        Require.that(territoryRepository.rename(id, newName) > 0, "Hudud topilmadi: ID=" + id);
+        Require.affected(territoryRepository.rename(id, newName), "Hudud topilmadi: ID=" + id);
         return getTerritory(id);
     }
 
@@ -81,10 +82,10 @@ public class TerritoryMcpTools {
         try {
             deleted = territoryRepository.delete(id);
         } catch (DataIntegrityViolationException e) {
-            throw new IllegalStateException(
+            throw ToolException.conflict(
                     "Hududni o'chirib bo'lmadi: unga ichki hududlar, agentlar yoki mijozlar bog'langan. ID=" + id);
         }
-        Require.that(deleted > 0, "Hudud topilmadi: ID=" + id);
+        Require.affected(deleted, "Hudud topilmadi: ID=" + id);
         return new DeletedDto("territory", id);
     }
 }
