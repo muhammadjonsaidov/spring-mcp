@@ -2,6 +2,7 @@ package io.salesdoctor.spring_mcp.repository;
 
 import io.salesdoctor.spring_mcp.jooq.tables.records.CustomersRecord;
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -51,9 +52,42 @@ public class CustomerRepository {
                 .fetch();
     }
 
+    /**
+     * Qatorni tranzaksiya oxirigacha qulflaydi (bir vaqtdagi to'lovlar uchun).
+     */
+    public CustomersRecord findByIdForUpdate(Long id) {
+        return dsl.selectFrom(CUSTOMERS)
+                .where(CUSTOMERS.ID.eq(id))
+                .forUpdate()
+                .fetchOne();
+    }
+
     public int updateDebt(Long customerId, BigDecimal newDebt) {
         return dsl.update(CUSTOMERS)
                 .set(CUSTOMERS.DEBT_AMOUNT, newDebt)
+                .where(CUSTOMERS.ID.eq(customerId))
+                .execute();
+    }
+
+    /**
+     * Qarzni atomik oshiradi.
+     */
+    public int increaseDebt(Long customerId, BigDecimal amount) {
+        return dsl.update(CUSTOMERS)
+                .set(CUSTOMERS.DEBT_AMOUNT,
+                        DSL.coalesce(CUSTOMERS.DEBT_AMOUNT, BigDecimal.ZERO).plus(amount))
+                .where(CUSTOMERS.ID.eq(customerId))
+                .execute();
+    }
+
+    /**
+     * Qarzni atomik kamaytiradi, 0 dan pastga tushirmaydi.
+     */
+    public int decreaseDebt(Long customerId, BigDecimal amount) {
+        return dsl.update(CUSTOMERS)
+                .set(CUSTOMERS.DEBT_AMOUNT, DSL.greatest(
+                        DSL.coalesce(CUSTOMERS.DEBT_AMOUNT, BigDecimal.ZERO).minus(amount),
+                        DSL.inline(BigDecimal.ZERO)))
                 .where(CUSTOMERS.ID.eq(customerId))
                 .execute();
     }

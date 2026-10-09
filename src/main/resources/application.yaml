@@ -9,6 +9,9 @@ spring:
     username: salesdoctor
     password: salesdoctor_pass
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # Sana bo'yicha so'rovlar (created_at::date) AppTime.ZONE bilan bir xil kunni bersin
+      connection-init-sql: "SET TIME ZONE 'Asia/Tashkent'"
 
   jooq:
     sql-dialect: postgres
@@ -17,7 +20,8 @@ spring:
     community-db-support-enabled: true
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
+    # Bo'sh bo'lmagan, tarixsiz sxemada V1 ni o'tkazib yubormaslik uchun
+    baseline-on-migrate: false
     default-schema: public
 
   ai:

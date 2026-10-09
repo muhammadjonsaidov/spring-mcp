@@ -1,108 +1,82 @@
 package io.salesdoctor.spring_mcp.mcp;
 
-import io.salesdoctor.spring_mcp.jooq.tables.records.CustomersRecord;
+import io.salesdoctor.spring_mcp.dto.CustomerDto;
+import io.salesdoctor.spring_mcp.dto.DeletedDto;
 import io.salesdoctor.spring_mcp.repository.CustomerRepository;
+import io.salesdoctor.spring_mcp.repository.TerritoryRepository;
+import io.salesdoctor.spring_mcp.support.Require;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class CustomerMcpTools {
 
     private final CustomerRepository customerRepository;
+    private final TerritoryRepository territoryRepository;
 
-    public CustomerMcpTools(CustomerRepository customerRepository) {
+    public CustomerMcpTools(CustomerRepository customerRepository, TerritoryRepository territoryRepository) {
         this.customerRepository = customerRepository;
+        this.territoryRepository = territoryRepository;
     }
 
     @McpTool(name = "createCustomer",
             description = "Yangi mijoz (savdo nuqtasi) yaratadi va uning ID sini qaytaradi")
-    public String createCustomer(
+    public CustomerDto createCustomer(
             @McpToolParam(description = "Mijoz nomi") String name,
             @McpToolParam(description = "Manzil") String address,
-            @McpToolParam(description = "Telefon raqami") String phone
+            @McpToolParam(description = "Telefon raqami") String phone,
+            @McpToolParam(description = "Hudud ID si (ixtiyoriy)", required = false) Long territoryId
     ) {
-        CustomersRecord customer = customerRepository.create(name, address, phone, null);
-        return formatCustomer(customer);
+        Require.notBlank(name, "Mijoz nomi bo'sh bo'lishi mumkin emas.");
+        if (territoryId != null) {
+            Require.found(territoryRepository.findById(territoryId), "Hudud topilmadi: ID=" + territoryId);
+        }
+        return CustomerDto.from(customerRepository.create(name, address, phone, territoryId));
     }
 
     @McpTool(name = "listCustomers",
             description = "Barcha faol mijozlar ro'yxatini qaytaradi")
-    public String listCustomers() {
-        List<CustomersRecord> customers = customerRepository.findAll();
-        if (customers.isEmpty()) return "Mijozlar topilmadi.";
-
-        return customers.stream()
-                .map(this::formatCustomer)
-                .collect(Collectors.joining("\n"));
+    public List<CustomerDto> listCustomers() {
+        return customerRepository.findAll().stream().map(CustomerDto::from).toList();
     }
 
     @McpTool(name = "searchCustomers",
             description = "Mijozlarni nomi bo'yicha qidiradi")
-    public String searchCustomers(
+    public List<CustomerDto> searchCustomers(
             @McpToolParam(description = "Qidiruv so'zi") String query
     ) {
-        List<CustomersRecord> customers = customerRepository.searchByName(query);
-        if (customers.isEmpty()) return "'" + query + "' bo'yicha mijoz topilmadi.";
-
-        return customers.stream()
-                .map(this::formatCustomer)
-                .collect(Collectors.joining("\n"));
+        return customerRepository.searchByName(query).stream().map(CustomerDto::from).toList();
     }
 
     @McpTool(name = "getCustomer",
             description = "Mijozni ID bo'yicha topadi")
-    public String getCustomer(
+    public CustomerDto getCustomer(
             @McpToolParam(description = "Mijoz ID si") Long id
     ) {
-        CustomersRecord customer = customerRepository.findById(id);
-        if (customer == null) return "Mijoz topilmadi: ID=" + id;
-
-        return formatCustomer(customer);
+        return CustomerDto.from(Require.found(customerRepository.findById(id), "Mijoz topilmadi: ID=" + id));
     }
 
     @McpTool(name = "updateDebt",
             description = "Mijoz qarzini yangilaydi")
-    public String updateCustomerDebt(
+    public CustomerDto updateCustomerDebt(
             @McpToolParam(description = "Mijoz ID si") Long id,
-            @McpToolParam(description = "Yangi qarz summasi") BigDecimal newDebt
+            @McpToolParam(description = "Yangi qarz summasi (0 yoki katta)") BigDecimal newDebt
     ) {
-        if (newDebt == null || newDebt.signum() < 0) return "Qarz summasi noto'g'ri: " + newDebt;
-
-        int updated = customerRepository.updateDebt(id, newDebt);
-        if (updated == 0) return "Mijoz topilmadi: ID=" + id;
-
-        CustomersRecord customer = customerRepository.findById(id);
-        return customer != null ? formatCustomer(customer) : "Mijoz qarzi yangilandi: ID=" + id;
+        Require.that(newDebt != null && newDebt.signum() >= 0, "Qarz summasi noto'g'ri: " + newDebt);
+        Require.that(customerRepository.updateDebt(id, newDebt) > 0, "Mijoz topilmadi: ID=" + id);
+        return getCustomer(id);
     }
 
     @McpTool(name = "deleteCustomer",
             description = "Mijozni o'chiradi (soft delete)")
-    public String deleteCustomer(
+    public DeletedDto deleteCustomer(
             @McpToolParam(description = "Mijoz ID si") Long id
     ) {
-        int deleted = customerRepository.softDelete(id);
-        return deleted > 0 ? "Mijoz o'chirildi: ID=" + id : "Mijoz topilmadi: ID=" + id;
-    }
-
-
-    private String formatCustomer(CustomersRecord c) {
-        return String.format(
-                "{\"id\": %d, \"name\": \"%s\", \"address\": \"%s\", " +
-                        "\"phone\": \"%s\", \"debt\": %s}",
-                c.getId(),
-                escape(c.getName()),
-                escape(c.getAddress()),
-                escape(c.getPhone()),
-                c.getDebtAmount()
-        );
-    }
-
-    private String escape(String s) {
-        return s == null ? "" : s.replace("\"", "\\\"");
+        Require.that(customerRepository.softDelete(id) > 0, "Mijoz topilmadi: ID=" + id);
+        return new DeletedDto("customer", id);
     }
 }

@@ -75,6 +75,21 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 	<dependencyManagement>
 		<dependencies>
@@ -117,6 +132,29 @@
 						<database>
 							<name>org.jooq.meta.postgres.PostgresDatabase</name>
 							<inputSchema>public</inputSchema>
+							<!-- Matnli holat/rol ustunlari io.salesdoctor.spring_mcp.domain enum'lariga bog'lanadi -->
+							<forcedTypes>
+								<forcedType>
+									<userType>io.salesdoctor.spring_mcp.domain.OrderStatus</userType>
+									<enumConverter>true</enumConverter>
+									<includeExpression>orders\.status</includeExpression>
+								</forcedType>
+								<forcedType>
+									<userType>io.salesdoctor.spring_mcp.domain.ReturnStatus</userType>
+									<enumConverter>true</enumConverter>
+									<includeExpression>returns\.status</includeExpression>
+								</forcedType>
+								<forcedType>
+									<userType>io.salesdoctor.spring_mcp.domain.AgentRole</userType>
+									<enumConverter>true</enumConverter>
+									<includeExpression>agents\.role</includeExpression>
+								</forcedType>
+								<forcedType>
+									<userType>io.salesdoctor.spring_mcp.domain.PaymentMethod</userType>
+									<enumConverter>true</enumConverter>
+									<includeExpression>payments\.payment_method</includeExpression>
+								</forcedType>
+							</forcedTypes>
 						</database>
 						<target>
 							<packageName>io.salesdoctor.spring_mcp.jooq</packageName>

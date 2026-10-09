@@ -1,6 +1,5 @@
 package io.salesdoctor.spring_mcp.repository;
 
-
 import io.salesdoctor.spring_mcp.jooq.tables.records.ProductsRecord;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Repository;
@@ -60,6 +59,13 @@ public class ProductRepository {
     public int updatePrice(Long productId, BigDecimal newPrice) {
         return dsl.update(PRODUCTS)
                 .set(PRODUCTS.PRICE, newPrice)
+                .where(PRODUCTS.ID.eq(productId))
+                .execute();
+    }
+
+    public int updateCategory(Long productId, Long categoryId) {
+        return dsl.update(PRODUCTS)
+                .set(PRODUCTS.CATEGORY_ID, categoryId)
                 .where(PRODUCTS.ID.eq(productId))
                 .execute();
     }

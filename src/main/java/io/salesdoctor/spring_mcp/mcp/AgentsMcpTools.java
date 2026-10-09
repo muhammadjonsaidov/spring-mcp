@@ -1,140 +1,117 @@
 package io.salesdoctor.spring_mcp.mcp;
 
-import io.salesdoctor.spring_mcp.jooq.tables.records.AgentsRecord;
+import io.salesdoctor.spring_mcp.domain.AgentRole;
+import io.salesdoctor.spring_mcp.dto.AgentDto;
 import io.salesdoctor.spring_mcp.repository.AgentRepository;
+import io.salesdoctor.spring_mcp.repository.TerritoryRepository;
+import io.salesdoctor.spring_mcp.support.Require;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class AgentsMcpTools {
 
     private final AgentRepository agentRepository;
+    private final TerritoryRepository territoryRepository;
 
-    public AgentsMcpTools(AgentRepository agentRepository) {
+    public AgentsMcpTools(AgentRepository agentRepository, TerritoryRepository territoryRepository) {
         this.agentRepository = agentRepository;
+        this.territoryRepository = territoryRepository;
     }
 
     @McpTool(name = "createAgent",
-            description = "Yangi savdo agenti yaratadi. Rollar: AGENT, SUPERVISOR, EXPEDITOR")
-    public String createAgent(
+            description = "Yangi savdo agenti yaratadi. Rollar: " + AgentRole.ALLOWED)
+    public AgentDto createAgent(
             @McpToolParam(description = "To'liq ism") String fullName,
             @McpToolParam(description = "Telefon raqami") String phone,
             @McpToolParam(description = "Email (unikal)") String email,
-            @McpToolParam(description = "Rol: AGENT, SUPERVISOR, EXPEDITOR") String role,
-            @McpToolParam(description = "Hudud ID si (ixtiyoriy)") Long territoryId) {
+            @McpToolParam(description = "Rol: " + AgentRole.ALLOWED + " (default AGENT)", required = false) String role,
+            @McpToolParam(description = "Hudud ID si (ixtiyoriy)", required = false) Long territoryId) {
 
-        try {
-            AgentsRecord agent = agentRepository.create(fullName, phone, email, role, territoryId);
-            return format(agent);
-        } catch (Exception e) {
-            return "Xatolik: " + e.getMessage();
+        Require.notBlank(fullName, "Agent ismi bo'sh bo'lishi mumkin emas.");
+        AgentRole agentRole = AgentRole.parseOrDefault(role);
+        if (territoryId != null) {
+            Require.found(territoryRepository.findById(territoryId), "Hudud topilmadi: ID=" + territoryId);
         }
+        if (email != null && !email.isBlank()) {
+            Require.that(agentRepository.findByEmail(email) == null,
+                    "Bu email bilan agent allaqachon mavjud: " + email);
+        }
+
+        return AgentDto.from(agentRepository.create(fullName, phone, email, agentRole, territoryId));
     }
 
     @McpTool(name = "listAgents",
             description = "Barcha faol agentlar ro'yxatini qaytaradi")
-    public String listAgents() {
-        List<AgentsRecord> agents = agentRepository.findAllActive();
-        if (agents.isEmpty()) return "Agentlar topilmadi.";
-        return agents.stream().map(this::format).collect(Collectors.joining("\n"));
+    public List<AgentDto> listAgents() {
+        return agentRepository.findAllActive().stream().map(AgentDto::from).toList();
     }
 
     @McpTool(name = "listAgentsByTerritory",
             description = "Berilgan hududdagi agentlarni ko'rsatadi")
-    public String listAgentsByTerritory(
+    public List<AgentDto> listAgentsByTerritory(
             @McpToolParam(description = "Hudud ID si") Long territoryId) {
-        List<AgentsRecord> agents = agentRepository.findByTerritory(territoryId);
-        if (agents.isEmpty()) return "Bu hududda agentlar topilmadi.";
-        return agents.stream().map(this::format).collect(Collectors.joining("\n"));
+        return agentRepository.findByTerritory(territoryId).stream().map(AgentDto::from).toList();
     }
 
     @McpTool(name = "listAgentsByRole",
-            description = "Rol bo'yicha agentlarni ko'rsatadi (AGENT, SUPERVISOR, EXPEDITOR)")
-    public String listAgentsByRole(
-            @McpToolParam(description = "Rol") String role) {
-        List<AgentsRecord> agents = agentRepository.findByRole(role);
-        if (agents.isEmpty()) return "'" + role + "' rolidagi agentlar topilmadi.";
-        return agents.stream().map(this::format).collect(Collectors.joining("\n"));
+            description = "Rol bo'yicha agentlarni ko'rsatadi (" + AgentRole.ALLOWED + ")")
+    public List<AgentDto> listAgentsByRole(
+            @McpToolParam(description = "Rol: " + AgentRole.ALLOWED) String role) {
+        return agentRepository.findByRole(AgentRole.parse(role)).stream().map(AgentDto::from).toList();
     }
 
     @McpTool(name = "getAgent",
             description = "Agentni ID bo'yicha topadi")
-    public String getAgent(
+    public AgentDto getAgent(
             @McpToolParam(description = "Agent ID si") Long id) {
-        AgentsRecord agent = agentRepository.findById(id);
-        if (agent == null) return "Agent topilmadi: ID=" + id;
-        return format(agent);
+        return AgentDto.from(Require.found(agentRepository.findById(id), "Agent topilmadi: ID=" + id));
     }
 
     @McpTool(name = "getAgentByEmail",
             description = "Agentni Email bo'yicha topadi")
-    public String getAgentByEmail(
+    public AgentDto getAgentByEmail(
             @McpToolParam(description = "Agent Emaili") String email
     ) {
-        AgentsRecord agent = agentRepository.findByEmail(email);
-        if (agent == null) return "Agent topilmadi: Email=" + email;
-        return format(agent);
+        return AgentDto.from(Require.found(agentRepository.findByEmail(email), "Agent topilmadi: Email=" + email));
     }
 
     @McpTool(name = "searchAgents",
             description = "Agentlarni ismi bo'yicha qidiradi")
-    public String searchAgents(
+    public List<AgentDto> searchAgents(
             @McpToolParam(description = "Qidiruv so'zi") String query) {
-        List<AgentsRecord> agents = agentRepository.searchByName(query);
-        if (agents.isEmpty()) return "'" + query + "' bo'yicha agent topilmadi.";
-        return agents.stream().map(this::format).collect(Collectors.joining("\n"));
+        return agentRepository.searchByName(query).stream().map(AgentDto::from).toList();
     }
 
     @McpTool(name = "updateAgentTerritory",
             description = "Agentning hududini o'zgartiradi")
-    public String updateAgentTerritory(
+    public AgentDto updateAgentTerritory(
             @McpToolParam(description = "Agent ID si") Long agentId,
             @McpToolParam(description = "Yangi hudud ID si") Long territoryId) {
-        int updated = agentRepository.updateTerritory(agentId, territoryId);
-        return updated > 0
-                ? "Agent hududi o'zgartirildi: agentId=" + agentId + ", territoryId=" + territoryId
-                : "Agent topilmadi: ID=" + agentId;
+        Require.found(territoryRepository.findById(territoryId), "Hudud topilmadi: ID=" + territoryId);
+        Require.that(agentRepository.updateTerritory(agentId, territoryId) > 0, "Agent topilmadi: ID=" + agentId);
+        return getAgent(agentId);
     }
 
     @McpTool(name = "updateAgentRole",
-    description = "Agentning rolini o'zgartiradi")
-    public String updateAgentRole(
+            description = "Agentning rolini o'zgartiradi (" + AgentRole.ALLOWED + ")")
+    public AgentDto updateAgentRole(
             @McpToolParam(description = "Agent ID si") Long agentId,
-            @McpToolParam(description = "Yangi role") String newRole
+            @McpToolParam(description = "Yangi rol: " + AgentRole.ALLOWED) String newRole
     ) {
-        int updated = agentRepository.updateRole(agentId, newRole);
-
-        return updated > 0 ? "Role o'zgartirildi: ID=" + agentId
-                : "Role o'zgartirib bo'lmadi: ID=" + agentId;
+        AgentRole role = AgentRole.parse(newRole);
+        Require.that(agentRepository.updateRole(agentId, role) > 0, "Agent topilmadi: ID=" + agentId);
+        return getAgent(agentId);
     }
 
     @McpTool(name = "deactivateAgent",
             description = "Agentni faolsizlantiradi (soft delete)")
-    public String deactivateAgent(
+    public AgentDto deactivateAgent(
             @McpToolParam(description = "Agent ID si") Long id) {
-        int updated = agentRepository.deactivate(id);
-        return updated > 0 ? "Agent faolsizlantirildi: ID=" + id
-                : "Agent topilmadi: ID=" + id;
-    }
-
-    private String format(AgentsRecord a) {
-        return String.format(
-                "{\"id\": %d, \"fullName\": \"%s\", \"phone\": \"%s\", " +
-                        "\"email\": \"%s\", \"role\": \"%s\", \"territoryId\": %s}",
-                a.getId(),
-                esc(a.getFullName()),
-                esc(a.getPhone()),
-                esc(a.getEmail()),
-                a.getRole(),
-                a.getTerritoryId() == null ? "null" : a.getTerritoryId().toString()
-        );
-    }
-
-    private String esc(String s) {
-        return s == null ? "" : s.replace("\"", "\\\"");
+        Require.that(agentRepository.deactivate(id) > 0, "Agent topilmadi: ID=" + id);
+        return getAgent(id);
     }
 }

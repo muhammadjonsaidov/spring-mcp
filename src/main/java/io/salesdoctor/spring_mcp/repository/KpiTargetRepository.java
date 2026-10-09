@@ -2,6 +2,7 @@ package io.salesdoctor.spring_mcp.repository;
 
 import io.salesdoctor.spring_mcp.jooq.tables.records.KpiTargetsRecord;
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -14,7 +15,6 @@ import static io.salesdoctor.spring_mcp.jooq.Tables.KPI_TARGETS;
 public class KpiTargetRepository {
 
     private final DSLContext dsl;
-
 
     public KpiTargetRepository(DSLContext dsl) {
         this.dsl = dsl;
@@ -45,13 +45,16 @@ public class KpiTargetRepository {
                 .fetch();
     }
 
-    public KpiTargetsRecord findByAgentAndPeriod(Long agentId,
-                                                 LocalDate periodStart,
-                                                 LocalDate periodEnd) {
+    /**
+     * Agentning [periodStart, periodEnd] oralig'i bilan kesishadigan birinchi maqsadi.
+     */
+    public KpiTargetsRecord findOverlapping(Long agentId, LocalDate periodStart, LocalDate periodEnd) {
         return dsl.selectFrom(KPI_TARGETS)
                 .where(KPI_TARGETS.AGENT_ID.eq(agentId))
-                .and(KPI_TARGETS.PERIOD_START.eq(periodStart))
-                .and(KPI_TARGETS.PERIOD_END.eq(periodEnd))
+                .and(KPI_TARGETS.PERIOD_START.le(periodEnd))
+                .and(KPI_TARGETS.PERIOD_END.ge(periodStart))
+                .orderBy(KPI_TARGETS.PERIOD_START)
+                .limit(1)
                 .fetchOne();
     }
 
@@ -74,9 +77,37 @@ public class KpiTargetRepository {
     public int addAchievedAmount(Long kpiTargetId, BigDecimal amount) {
         return dsl.update(KPI_TARGETS)
                 .set(KPI_TARGETS.ACHIEVED_AMOUNT,
-                        KPI_TARGETS.ACHIEVED_AMOUNT.plus(amount))
+                        DSL.coalesce(KPI_TARGETS.ACHIEVED_AMOUNT, BigDecimal.ZERO).plus(amount))
                 .where(KPI_TARGETS.ID.eq(kpiTargetId))
                 .execute();
+    }
+
+    /**
+     * achieved_amount ni kamaytiradi, 0 dan pastga tushirmaydi.
+     */
+    public int subtractAchievedAmount(Long kpiTargetId, BigDecimal amount) {
+        return dsl.update(KPI_TARGETS)
+                .set(KPI_TARGETS.ACHIEVED_AMOUNT, DSL.greatest(
+                        DSL.coalesce(KPI_TARGETS.ACHIEVED_AMOUNT, BigDecimal.ZERO).minus(amount),
+                        DSL.inline(BigDecimal.ZERO)))
+                .where(KPI_TARGETS.ID.eq(kpiTargetId))
+                .execute();
+    }
+
+    /**
+     * Agentning shu sanani qamragan maqsadiga summani qo'shadi (manfiy bo'lsa ayiradi).
+     */
+    public void applyToAgentKpi(Long agentId, LocalDate date, BigDecimal amount) {
+        if (agentId == null || amount == null || amount.signum() == 0) return;
+
+        KpiTargetsRecord kpi = findByAgentAndDate(agentId, date);
+        if (kpi == null) return;
+
+        if (amount.signum() > 0) {
+            addAchievedAmount(kpi.getId(), amount);
+        } else {
+            subtractAchievedAmount(kpi.getId(), amount.negate());
+        }
     }
 
     public int setAchievedAmount(Long kpiTargetId, BigDecimal amount) {

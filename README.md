@@ -103,12 +103,24 @@ Seed data:
   covering the `AGENT`, `SUPERVISOR` and `EXPEDITOR` roles
 - `V4__seed_agent_stock.sql` — initial van stock for agents 1–3
 - `V5__seed_categories.sql` — a two-level product-category hierarchy
+- `V6`–`V8` — `returns` and `kpi_targets` tables, `returns.reason`
+- `V9__integrity_constraints.sql` — merges duplicate warehouse rows, adds a unique index
+  on warehouse stock per product, `CHECK` constraints (non-negative stock/debt/price,
+  positive quantities/amounts, valid KPI periods), `returns.status` default `PENDING`,
+  date indexes on `orders` and `payments`
+- `V10__seed_products.sql` — 10 categorised products with 100 units of `MAIN` stock each
+  (existing SKUs are left untouched)
 
 ## MCP tools
 
 Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `@Component` classes in `io.salesdoctor.spring_mcp.mcp`. Descriptions are in Uzbek.
-84 tools are exposed in total.
+Tools return DTO records from `io.salesdoctor.spring_mcp.dto` (or lists of them), which
+Spring AI serializes to JSON text; list tools return `[]` when nothing matches. Validation
+and "not found" failures are thrown as exceptions, which Spring AI turns into an
+`isError: true` result carrying the message.
+85 tools are exposed in total. Parameters described as optional ("ixtiyoriy" /
+"bo'sh bo'lsa ...") are declared with `required = false`.
 
 ### Territories — `TerritoryMcpTools`
 
@@ -131,20 +143,29 @@ Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `createOrder`, `getOrder`, `getOrderByNumber`, `listOrdersByCustomer`,
 `listOrdersByAgent`, `listRecentOrders`, `updateOrderStatus`
 
-Creating an order also increases the customer's `debt_amount` by the order total and
-adds that total to the agent's active KPI target (`achieved_amount`), if one covers today.
+`createOrder` rejects non-positive quantities, merges repeated product lines, and refuses
+inactive customers, agents or products. It decreases the stock source (agent van, or the
+warehouse when no agent is given), increases the customer's `debt_amount` by the order
+total and adds that total to the agent's KPI target covering the order date.
+
+`updateOrderStatus` allows `NEW → CONFIRMED | DELIVERED | CANCELLED` and
+`CONFIRMED → DELIVERED | CANCELLED`; `DELIVERED` and `CANCELLED` are final. Cancelling
+returns the items to their stock source and reverses the debt and KPI amounts.
 
 ### Payments — `PaymentMcpTools`
 
 `acceptPayment`, `listPaymentsByCustomer`, `listPaymentsByOrder`, `listPaymentsByAgent`,
 `listRecentPayments`, `dailyPaymentsTotal`, `orderPaymentStatus`
 
-`acceptPayment` records a payment and reduces the customer's debt (clamped at zero).
+`acceptPayment` reduces the customer's debt. It rejects amounts above the current debt
+(or above the order's unpaid remainder when `orderId` is given), orders of another
+customer and cancelled orders. `orderPaymentStatus` returns the order total, the paid
+amount and the remainder.
 
 ### Products — `ProductMcpTools`
 
 `createProduct`, `listProducts`, `searchProducts`, `getProductById`,
-`getProductBySku`, `updateProductPrice`, `deleteProduct`
+`getProductBySku`, `updateProductPrice`, `updateProductCategory`, `deleteProduct`
 
 ### Categories — `CategoryMcpTools`
 
@@ -158,47 +179,65 @@ adds that total to the agent's active KPI target (`achieved_amount`), if one cov
 `addStock`, `getStock`, `listWarehouseStock`, `listAgentStock`, `getAgentStock`,
 `transferStockToAgent`, `returnStockFromAgent`, `getAgentStockValue`
 
-`transferStockToAgent` (warehouse → agent van) and `returnStockFromAgent` (agent van →
-warehouse) both validate the quantity and the available stock before mutating anything.
+`transferStockToAgent` (warehouse → active agent's van) and `returnStockFromAgent`
+(agent van → warehouse) run both steps in one transaction. All stock changes reject
+non-positive quantities.
 
 ### Reports — `ReportMcpTools`
 
 `dailySalesReport`, `topProductsReport`, `agentKpiReport`, `debtorsReport`,
 `salesByTerritoryReport`, `overallStatsReport`, `customerSummaryReport`
 
+Cancelled orders are excluded everywhere. `salesByTerritoryReport` rolls each territory
+up with all of its descendants and lists customers without a territory as `Hududsiz`.
+Dates are interpreted in `Asia/Tashkent` (see `AppTime` and the Hikari
+`connection-init-sql`).
+
 ### Returns — `ReturnMcpTools`
 
 `createReturn`, `approveReturn`, `rejectReturn`, `getReturn`, `listReturnsByCustomer`,
 `listReturnsByStatus`, `listPendingReturns`, `listReturnsByAgent`, `listRecentReturns`
 
-`createReturn` records a `PENDING` return. `approveReturn` increases the warehouse stock
-(via `upsertWarehouseStock`) and reduces the customer's debt; `rejectReturn` records a
-reason. Only `PENDING` returns can be approved or rejected.
+`createReturn` records a `PENDING` return. With an `orderId`, the order must belong to the
+customer and be `DELIVERED`, the product must be on it, and the quantity may not exceed
+what was ordered minus earlier pending/approved returns. The amount defaults to the sold
+price × quantity and may not exceed it. `approveReturn` increases the warehouse stock and
+reduces the customer's debt and the agent's KPI; `rejectReturn` records a reason. Only
+`PENDING` returns can be approved or rejected, and each only once.
 
 ### KPI targets — `KpiTargetMcpTools`
 
 `createKpiTarget`, `getKpiTarget`, `listKpiTargetsByAgent`, `listAllKpiTargets`,
 `getAgentKpiProgress`, `updateKpiAchieved`, `updateKpiTargetAmount`, `deleteKpiTarget`
 
-A KPI target is unique per agent and period. Order creation bumps the active target's
-`achieved_amount`, and `getAgentKpiProgress` reports the achieved-vs-target percentage
-for a given date.
+An agent's KPI periods may not overlap and targets must be positive. Orders add to the
+target covering the order date; cancellations and approved returns subtract from it.
+`getAgentKpiProgress` reports the achieved-vs-target percentage for a given date.
 
 ## Project layout
 
 ```
 src/main/java/io/salesdoctor/spring_mcp/
 ├── SpringMcpApplication.java      # entry point
+├── domain/                        # enums: OrderStatus (with transitions), ReturnStatus,
+│                                  #  AgentRole, PaymentMethod, StockLocation
 ├── mcp/                           # @McpTool classes (territory, agent, customer, order,
 │                                  #  payment, product, category, stock, report, return, kpi)
-└── repository/                    # jOOQ-backed repositories
+├── repository/                    # jOOQ-backed repositories
+├── dto/                           # tool response records (entities, reports, results)
+└── support/                       # AppTime (Asia/Tashkent dates), Require (validation)
 src/main/resources/
 ├── application.yaml
-└── db/migration/                  # Flyway migrations (V1 schema, V2–V5 seed, V6–V8 schema)
+└── db/migration/                  # Flyway migrations (V1 schema, V2–V5 seed, V6–V9 schema, V10 seed)
 ```
 
 ## Notes
 
 - jOOQ classes under `io.salesdoctor.spring_mcp.jooq` are generated at build time, not
-  committed.
+  committed. `forcedTypes` in `pom.xml` map `orders.status`, `returns.status`,
+  `agents.role` and `payments.payment_method` to the enums in `domain` (stored as
+  `name()`), so these fields are typed and status rules live in one place.
 - `HELP.md`, `.idea/`, `target/` and the Maven wrapper jar are git-ignored.
+- Tests (`./mvnw test`) run against a throwaway `postgres:18.6-alpine` container via
+  Testcontainers, so Docker must be running; the development database is not touched.
+  The jOOQ code generation step still needs the local database from `docker-compose.yml`.

@@ -1,6 +1,6 @@
 package io.salesdoctor.spring_mcp.repository;
 
-import io.salesdoctor.spring_mcp.jooq.tables.Agents;
+import io.salesdoctor.spring_mcp.domain.AgentRole;
 import io.salesdoctor.spring_mcp.jooq.tables.records.AgentsRecord;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Repository;
@@ -12,19 +12,18 @@ import static io.salesdoctor.spring_mcp.jooq.Tables.AGENTS;
 @Repository
 public class AgentRepository {
 
-
     private final DSLContext dsl;
 
     public AgentRepository(DSLContext dsl) {
         this.dsl = dsl;
     }
 
-    public AgentsRecord create(String fullName, String phone, String email, String role, Long territoryId) {
+    public AgentsRecord create(String fullName, String phone, String email, AgentRole role, Long territoryId) {
         return dsl.insertInto(AGENTS)
                 .set(AGENTS.FULL_NAME, fullName)
                 .set(AGENTS.PHONE, phone)
                 .set(AGENTS.EMAIL, email)
-                .set(AGENTS.ROLE, role == null ? "AGENT" : role.toUpperCase())
+                .set(AGENTS.ROLE, role == null ? AgentRole.DEFAULT : role)
                 .set(AGENTS.TERRITORY_ID, territoryId)
                 .set(AGENTS.IS_ACTIVE, true)
                 .returning()
@@ -46,9 +45,9 @@ public class AgentRepository {
                 .fetch();
     }
 
-    public List<AgentsRecord> findByRole(String role) {
+    public List<AgentsRecord> findByRole(AgentRole role) {
         return dsl.selectFrom(AGENTS)
-                .where(AGENTS.ROLE.eq(role.toUpperCase()))
+                .where(AGENTS.ROLE.eq(role))
                 .and(AGENTS.IS_ACTIVE.eq(true))
                 .orderBy(AGENTS.FULL_NAME)
                 .fetch();
@@ -81,9 +80,9 @@ public class AgentRepository {
                 .execute();
     }
 
-    public int updateRole(Long agentId, String newRole) {
+    public int updateRole(Long agentId, AgentRole newRole) {
         return dsl.update(AGENTS)
-                .set(AGENTS.ROLE, newRole.toUpperCase())
+                .set(AGENTS.ROLE, newRole)
                 .where(AGENTS.ID.eq(agentId))
                 .execute();
     }

@@ -1,14 +1,15 @@
 package io.salesdoctor.spring_mcp.mcp;
 
-import io.salesdoctor.spring_mcp.jooq.tables.records.ReturnsRecord;
+import io.salesdoctor.spring_mcp.domain.ReturnStatus;
+import io.salesdoctor.spring_mcp.dto.ReturnDto;
 import io.salesdoctor.spring_mcp.repository.ReturnRepository;
+import io.salesdoctor.spring_mcp.support.Require;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class ReturnMcpTools {
@@ -20,129 +21,73 @@ public class ReturnMcpTools {
     }
 
     @McpTool(name = "createReturn",
-            description = "Yangi qaytarish yaratadi (PENDING holatida). Tasdiqlash uchun approveReturn ishlatiladi.")
-    public String createReturn(
+            description = "Yangi qaytarish yaratadi (PENDING holatida). Buyurtma ko'rsatilsa, u DELIVERED bo'lishi " +
+                    "va miqdor buyurtmadagidan oshmasligi kerak. Tasdiqlash uchun approveReturn ishlatiladi.")
+    public ReturnDto createReturn(
             @McpToolParam(description = "Mijoz ID si") Long customerId,
-            @McpToolParam(description = "Buyurtma ID si (ixtiyoriy)") Long orderId,
+            @McpToolParam(description = "Buyurtma ID si (ixtiyoriy)", required = false) Long orderId,
             @McpToolParam(description = "Mahsulot ID si") Long productId,
-            @McpToolParam(description = "Qaytariladigan miqdor") Integer quantity,
-            @McpToolParam(description = "Qaytariladigan summa") BigDecimal amount,
-            @McpToolParam(description = "Sababi") String reason,
-            @McpToolParam(description = "Agent ID si (ixtiyoriy)") Long agentId) {
+            @McpToolParam(description = "Qaytariladigan miqdor (0 dan katta)") Integer quantity,
+            @McpToolParam(description = "Qaytariladigan summa (ixtiyoriy, bo'sh bo'lsa sotilgan narx x miqdor)", required = false) BigDecimal amount,
+            @McpToolParam(description = "Sababi (ixtiyoriy)", required = false) String reason,
+            @McpToolParam(description = "Agent ID si (ixtiyoriy, bo'sh bo'lsa buyurtma agenti)", required = false) Long agentId) {
 
-        try {
-            ReturnsRecord ret = returnRepository.createReturn(
-                    customerId, orderId, productId, quantity, amount, reason, agentId
-            );
-            return format(ret);
-        } catch (IllegalArgumentException e) {
-            return "Xatolik: " + e.getMessage();
-        } catch (Exception e) {
-            return "Kutilmagan xatolik: " + e.getMessage();
-        }
+        return ReturnDto.from(returnRepository.createReturn(
+                customerId, orderId, productId, quantity, amount, reason, agentId));
     }
 
     @McpTool(name = "approveReturn",
-            description = "Qaytarishni tasdiqlaydi: ombor qoldig'ini oshiradi va mijoz qarzini kamaytiradi")
-    public String approveReturn(
+            description = "Qaytarishni tasdiqlaydi: ombor qoldig'ini oshiradi, mijoz qarzi va agent KPI sini kamaytiradi")
+    public ReturnDto approveReturn(
             @McpToolParam(description = "Qaytarish ID si") Long returnId) {
-
-        try {
-            int updated = returnRepository.approveReturn(returnId);
-            return updated > 0
-                    ? "Qaytarish tasdiqlandi: ID=" + returnId +
-                      " (ombor qoldig'i oshdi, mijoz qarzi kamaydi)"
-                    : "Qaytarish topilmadi: ID=" + returnId;
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return "Xatolik: " + e.getMessage();
-        }
+        return ReturnDto.from(returnRepository.approveReturn(returnId));
     }
 
     @McpTool(name = "rejectReturn",
             description = "Qaytarishni rad etadi")
-    public String rejectReturn(
+    public ReturnDto rejectReturn(
             @McpToolParam(description = "Qaytarish ID si") Long returnId,
-            @McpToolParam(description = "Rad etish sababi") String reason) {
-
-        try {
-            int updated = returnRepository.rejectReturn(returnId, reason);
-            return updated > 0
-                    ? "Qaytarish rad etildi: ID=" + returnId
-                    : "Qaytarish topilmadi: ID=" + returnId;
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return "Xatolik: " + e.getMessage();
-        }
+            @McpToolParam(description = "Rad etish sababi (ixtiyoriy)", required = false) String reason) {
+        return ReturnDto.from(returnRepository.rejectReturn(returnId, reason));
     }
 
     @McpTool(name = "getReturn",
             description = "Qaytarishni ID bo'yicha topadi")
-    public String getReturn(
+    public ReturnDto getReturn(
             @McpToolParam(description = "Qaytarish ID si") Long returnId) {
-        ReturnsRecord ret = returnRepository.findById(returnId);
-        if (ret == null) return "Qaytarish topilmadi: ID=" + returnId;
-        return format(ret);
+        return ReturnDto.from(Require.found(returnRepository.findById(returnId), "Qaytarish topilmadi: ID=" + returnId));
     }
 
     @McpTool(name = "listReturnsByCustomer",
             description = "Mijozning barcha qaytarishlarini ko'rsatadi")
-    public String listReturnsByCustomer(
+    public List<ReturnDto> listReturnsByCustomer(
             @McpToolParam(description = "Mijoz ID si") Long customerId) {
-        List<ReturnsRecord> returns = returnRepository.findByCustomer(customerId);
-        if (returns.isEmpty()) return "Bu mijozda qaytarishlar yo'q.";
-        return returns.stream().map(this::format).collect(Collectors.joining("\n"));
+        return returnRepository.findByCustomer(customerId).stream().map(ReturnDto::from).toList();
     }
 
     @McpTool(name = "listReturnsByStatus",
-            description = "Holat bo'yicha qaytarishlarni ko'rsatadi (PENDING, APPROVED, REJECTED)")
-    public String listReturnsByStatus(
-            @McpToolParam(description = "Holat") String status) {
-        List<ReturnsRecord> returns = returnRepository.findByStatus(status);
-        if (returns.isEmpty()) return "'" + status + "' holatidagi qaytarishlar yo'q.";
-        return returns.stream().map(this::format).collect(Collectors.joining("\n"));
+            description = "Holat bo'yicha qaytarishlarni ko'rsatadi (" + ReturnStatus.ALLOWED + ")")
+    public List<ReturnDto> listReturnsByStatus(
+            @McpToolParam(description = "Holat: " + ReturnStatus.ALLOWED) String status) {
+        return returnRepository.findByStatus(ReturnStatus.parse(status)).stream().map(ReturnDto::from).toList();
     }
 
     @McpTool(name = "listPendingReturns",
             description = "Tasdiqlanmagan (PENDING) qaytarishlarni ko'rsatadi")
-    public String listPendingReturns() {
-        List<ReturnsRecord> returns = returnRepository.findByStatus("PENDING");
-        if (returns.isEmpty()) return "Kutilayotgan qaytarishlar yo'q.";
-        return returns.stream().map(this::format).collect(Collectors.joining("\n"));
+    public List<ReturnDto> listPendingReturns() {
+        return returnRepository.findByStatus(ReturnStatus.PENDING).stream().map(ReturnDto::from).toList();
     }
 
     @McpTool(name = "listReturnsByAgent",
             description = "Agent bo'yicha qaytarishlarni ko'rsatadi")
-    public String listReturnsByAgent(
+    public List<ReturnDto> listReturnsByAgent(
             @McpToolParam(description = "Agent ID si") Long agentId) {
-        List<ReturnsRecord> returns = returnRepository.findByAgent(agentId);
-        if (returns.isEmpty()) return "Bu agentda qaytarishlar yo'q.";
-        return returns.stream().map(this::format).collect(Collectors.joining("\n"));
+        return returnRepository.findByAgent(agentId).stream().map(ReturnDto::from).toList();
     }
 
     @McpTool(name = "listRecentReturns",
             description = "Eng so'nggi 100 ta qaytarishni ko'rsatadi")
-    public String listRecentReturns() {
-        List<ReturnsRecord> returns = returnRepository.findAll();
-        if (returns.isEmpty()) return "Qaytarishlar yo'q.";
-        return returns.stream().map(this::format).collect(Collectors.joining("\n"));
-    }
-
-    private String format(ReturnsRecord r) {
-        return String.format(
-                "{\"id\": %d, \"customerId\": %d, \"orderId\": %s, " +
-                        "\"productId\": %s, \"quantity\": %d, \"amount\": %s, " +
-                        "\"status\": \"%s\", \"reason\": \"%s\"}",
-                r.getId(),
-                r.getCustomerId(),
-                r.getOrderId() == null ? "null" : r.getOrderId().toString(),
-                r.getProductId() == null ? "null" : r.getProductId().toString(),
-                r.getQuantity() == null ? 0 : r.getQuantity(),
-                r.getAmount() == null ? BigDecimal.ZERO : r.getAmount(),
-                r.getStatus(),
-                esc(r.getReason())
-        );
-    }
-
-    private String esc(String s) {
-        return s == null ? "" : s.replace("\"", "\\\"");
+    public List<ReturnDto> listRecentReturns() {
+        return returnRepository.findAll().stream().map(ReturnDto::from).toList();
     }
 }
