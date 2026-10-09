@@ -29,6 +29,10 @@
 	<properties>
 		<java.version>25</java.version>
 		<spring-ai.version>2.0.1</spring-ai.version>
+		<!-- Build vaqtidagi baza (Flyway migrate + jOOQ codegen). -Ddb.url=... bilan almashtirish mumkin -->
+		<db.url>jdbc:postgresql://localhost:5432/salesdoctor_db</db.url>
+		<db.user>salesdoctor</db.user>
+		<db.password>salesdoctor_pass</db.password>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -109,6 +113,43 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<!-- jOOQ codegen'dan oldin turishi shart: bir xil fazada plaginlar pom tartibida ishlaydi.
+			     Shunda bo'sh (yangi) bazada ham build avval migratsiyalarni qo'llaydi. -->
+			<plugin>
+				<groupId>org.flywaydb</groupId>
+				<artifactId>flyway-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>flyway-migrate</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>migrate</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<url>${db.url}</url>
+					<user>${db.user}</user>
+					<password>${db.password}</password>
+					<defaultSchema>public</defaultSchema>
+					<locations>
+						<location>filesystem:${project.basedir}/src/main/resources/db/migration</location>
+					</locations>
+					<baselineOnMigrate>false</baselineOnMigrate>
+				</configuration>
+				<dependencies>
+					<dependency>
+						<groupId>org.flywaydb</groupId>
+						<artifactId>flyway-database-postgresql</artifactId>
+						<version>${flyway.version}</version>
+					</dependency>
+					<dependency>
+						<groupId>org.postgresql</groupId>
+						<artifactId>postgresql</artifactId>
+						<version>${postgresql.version}</version>
+					</dependency>
+				</dependencies>
+			</plugin>
 			<plugin>
 				<groupId>org.jooq</groupId>
 				<artifactId>jooq-codegen-maven</artifactId>
@@ -124,9 +165,9 @@
 				<configuration>
 					<jdbc>
 						<driver>org.postgresql.Driver</driver>
-						<url>jdbc:postgresql://localhost:5432/salesdoctor_db</url>
-						<user>salesdoctor</user>
-						<password>salesdoctor_pass</password>
+						<url>${db.url}</url>
+						<user>${db.user}</user>
+						<password>${db.password}</password>
 					</jdbc>
 					<generator>
 						<database>

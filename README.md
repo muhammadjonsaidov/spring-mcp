@@ -240,4 +240,8 @@ src/main/resources/
 - `HELP.md`, `.idea/`, `target/` and the Maven wrapper jar are git-ignored.
 - Tests (`./mvnw test`) run against a throwaway `postgres:18.6-alpine` container via
   Testcontainers, so Docker must be running; the development database is not touched.
-  The jOOQ code generation step still needs the local database from `docker-compose.yml`.
+- The build needs the local database from `docker-compose.yml` running: in
+  `generate-sources`, `flyway-maven-plugin` first applies the migrations, then jOOQ
+  generates code from the migrated schema. A freshly recreated database
+  (`docker compose down -v && docker compose up -d`) therefore builds without extra steps.
+  Override the build database with `-Ddb.url=... -Ddb.user=... -Ddb.password=...`.
