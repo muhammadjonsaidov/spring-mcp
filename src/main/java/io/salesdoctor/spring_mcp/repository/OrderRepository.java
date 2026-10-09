@@ -92,6 +92,12 @@ public class OrderRepository {
                 );
             }
         }
+
+        dsl.update(CUSTOMERS)
+                .set(CUSTOMERS.DEBT_AMOUNT, CUSTOMERS.DEBT_AMOUNT.plus(totalAmount))
+                .where(CUSTOMERS.ID.eq(customerId))
+                .execute();
+
         return order;
     }
 
