@@ -1,8 +1,8 @@
 # spring-mcp
 
 An MCP (Model Context Protocol) server built with Spring Boot 4 / Spring AI 2, exposing
-the **SalesDoctor** sales-data domain (customers, agents, products, stock, orders) as
-callable tools for AI clients.
+the **SalesDoctor** sales-data domain (territories, agents, customers, orders,
+products, stock) as callable tools for AI clients.
 
 The server speaks the **streamable HTTP** MCP protocol at `http://localhost:8888/mcp`
 and backs its tools with PostgreSQL via jOOQ + Flyway migrations.
@@ -85,13 +85,30 @@ Key settings live in `src/main/resources/application.yaml`:
 Flyway `V1__init_schema.sql` creates the following tables:
 
 `territories`, `agents`, `customers`, `categories`, `products`, `stock`, `orders`,
-`order_items`, `payments` — with supporting indexes. `V2__seed_stock.sql` seeds 100
-units of `MAIN` warehouse stock for every active product.
+`order_items`, `payments` — with supporting indexes.
+
+Seed data:
+
+- `V2__seed_stock.sql` — 100 units of `MAIN` warehouse stock for every active product
+- `V3__seed_territories_agents.sql` — 7 territories (hierarchical) and 5 agents
+  covering the `AGENT`, `SUPERVISOR` and `EXPEDITOR` roles
 
 ## MCP tools
 
 Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `@Component` classes in `io.salesdoctor.spring_mcp.mcp`. Descriptions are in Uzbek.
+45 tools are exposed in total.
+
+### Territories — `TerritoryMcpTools`
+
+`createTerritory`, `listTerritories`, `listRootTerritories`, `listChildTerritories`,
+`getTerritory`, `renameTerritory`, `deleteTerritory`
+
+### Agents — `AgentsMcpTools`
+
+`createAgent`, `listAgents`, `listAgentsByTerritory`, `listAgentsByRole`, `getAgent`,
+`getAgentByEmail`, `searchAgents`, `updateAgentTerritory`, `updateAgentRole`,
+`deactivateAgent`
 
 ### Customers — `CustomerMcpTools`
 
@@ -110,18 +127,23 @@ Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 
 ### Stock — `StockMcpTools`
 
-`addStock`, `listWarehouseStock`, `listAgentStock`, `getStock`, `transferStockToAgent`
+`addStock`, `getStock`, `listWarehouseStock`, `listAgentStock`, `getAgentStock`,
+`transferStockToAgent`, `returnStockFromAgent`, `getAgentStockValue`
+
+`transferStockToAgent` (warehouse → agent van) and `returnStockFromAgent` (agent van →
+warehouse) both validate the quantity and the available stock before mutating anything.
 
 ## Project layout
 
 ```
 src/main/java/io/salesdoctor/spring_mcp/
 ├── SpringMcpApplication.java      # entry point
-├── mcp/                           # @McpTool classes (customer, order, product, stock)
+├── mcp/                           # @McpTool classes (territory, agent, customer,
+│                                  #  order, product, stock)
 └── repository/                    # jOOQ-backed repositories
 src/main/resources/
 ├── application.yaml
-└── db/migration/                  # Flyway migrations (V1 schema, V2 seed)
+└── db/migration/                  # Flyway migrations (V1 schema, V2/V3 seed)
 ```
 
 ## Notes
