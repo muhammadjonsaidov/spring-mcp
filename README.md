@@ -1,8 +1,8 @@
 # spring-mcp
 
 An MCP (Model Context Protocol) server built with Spring Boot 4 / Spring AI 2, exposing
-the **SalesDoctor** sales-data domain (territories, agents, customers, orders,
-products, stock) as callable tools for AI clients.
+the **SalesDoctor** sales-data domain (territories, agents, customers, orders, payments,
+products, categories, stock) as callable tools for AI clients.
 
 The server speaks the **streamable HTTP** MCP protocol at `http://localhost:8888/mcp`
 and backs its tools with PostgreSQL via jOOQ + Flyway migrations.
@@ -92,12 +92,14 @@ Seed data:
 - `V2__seed_stock.sql` — 100 units of `MAIN` warehouse stock for every active product
 - `V3__seed_territories_agents.sql` — 7 territories (hierarchical) and 5 agents
   covering the `AGENT`, `SUPERVISOR` and `EXPEDITOR` roles
+- `V4__seed_agent_stock.sql` — initial van stock for agents 1–3
+- `V5__seed_categories.sql` — a two-level product-category hierarchy
 
 ## MCP tools
 
 Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `@Component` classes in `io.salesdoctor.spring_mcp.mcp`. Descriptions are in Uzbek.
-45 tools are exposed in total.
+67 tools are exposed in total.
 
 ### Territories — `TerritoryMcpTools`
 
@@ -120,10 +122,26 @@ Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `createOrder`, `getOrder`, `getOrderByNumber`, `listOrdersByCustomer`,
 `listOrdersByAgent`, `listRecentOrders`, `updateOrderStatus`
 
+Creating an order also increases the customer's `debt_amount` by the order total.
+
+### Payments — `PaymentMcpTools`
+
+`acceptPayment`, `listPaymentsByCustomer`, `listPaymentsByOrder`, `listPaymentsByAgent`,
+`listRecentPayments`, `dailyPaymentsTotal`, `orderPaymentStatus`
+
+`acceptPayment` records a payment and reduces the customer's debt (clamped at zero).
+
 ### Products — `ProductMcpTools`
 
 `createProduct`, `listProducts`, `searchProducts`, `getProductById`,
 `getProductBySku`, `updateProductPrice`, `deleteProduct`
+
+### Categories — `CategoryMcpTools`
+
+`createCategory`, `listCategories`, `listRootCategories`, `listChildCategories`,
+`getCategory`, `searchCategories`, `renameCategory`, `deleteCategory`
+
+`deleteCategory` refuses to delete a category that still has products.
 
 ### Stock — `StockMcpTools`
 
@@ -133,17 +151,22 @@ Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `transferStockToAgent` (warehouse → agent van) and `returnStockFromAgent` (agent van →
 warehouse) both validate the quantity and the available stock before mutating anything.
 
+### Reports — `ReportMcpTools`
+
+`dailySalesReport`, `topProductsReport`, `agentKpiReport`, `debtorsReport`,
+`salesByTerritoryReport`, `overallStatsReport`, `customerSummaryReport`
+
 ## Project layout
 
 ```
 src/main/java/io/salesdoctor/spring_mcp/
 ├── SpringMcpApplication.java      # entry point
 ├── mcp/                           # @McpTool classes (territory, agent, customer,
-│                                  #  order, product, stock)
+│                                  #  order, payment, product, category, stock, report)
 └── repository/                    # jOOQ-backed repositories
 src/main/resources/
 ├── application.yaml
-└── db/migration/                  # Flyway migrations (V1 schema, V2/V3 seed)
+└── db/migration/                  # Flyway migrations (V1 schema, V2–V5 seed)
 ```
 
 ## Notes
