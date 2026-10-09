@@ -27,10 +27,11 @@ public class OrderRepository {
 
     @Transactional
     public OrdersRecord createOrder(Long customerId, Long agentId,
-                                    List<OrderItemInput> items, LocalDate deliveryDate) {
+                                    List<OrderItemInput> items, LocalDate deliveryDate
+    ) {
         String orderNumber = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        BigDecimal totalAmount = BigDecimal.ZERO;
 
+        BigDecimal totalAmount = BigDecimal.ZERO;
         for (OrderItemInput item : items) {
             ProductsRecord product = dsl.selectFrom(PRODUCTS)
                     .where(PRODUCTS.ID.eq(item.productId()))
@@ -42,11 +43,11 @@ public class OrderRepository {
             var stock = (agentId != null)
                     ? stockRepository.getAgentStock(item.productId(), agentId)
                     : stockRepository.getWarehouseStock(item.productId());
-
             if (stock == null || stock.getQuantity() < item.quantity()) {
+                String source = (agentId != null) ? "agent " + agentId : "asosiy ombor";
                 throw new IllegalStateException(
                         "Omborda yetarli mahsulot yo'q: " + product.getName() +
-                                " (manba: " + (agentId != null ? "agent " + agentId : "asosiy ombor") + ")" +
+                                " (manba: " + source + ")" +
                                 " (mavjud: " + (stock == null ? 0 : stock.getQuantity()) +
                                 ", kerak: " + item.quantity() + ")"
                 );
@@ -81,7 +82,6 @@ public class OrderRepository {
                     .set(ORDER_ITEMS.DISCOUNT_PERCENT, BigDecimal.ZERO)
                     .execute();
 
-            // Ombor qoldig'ini kamaytirish
             int updated = (agentId != null)
                     ? stockRepository.decreaseAgentStock(item.productId(), agentId, item.quantity())
                     : stockRepository.decreaseWarehouseStock(item.productId(), item.quantity());
@@ -92,7 +92,6 @@ public class OrderRepository {
                 );
             }
         }
-
         return order;
     }
 
