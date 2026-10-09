@@ -2,10 +2,13 @@ package io.salesdoctor.spring_mcp.repository;
 
 import io.salesdoctor.spring_mcp.jooq.tables.records.StockRecord;
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 
+import static io.salesdoctor.spring_mcp.jooq.Tables.PRODUCTS;
 import static io.salesdoctor.spring_mcp.jooq.Tables.STOCK;
 
 @Repository
@@ -58,6 +61,13 @@ public class StockRepository {
                 .fetch();
     }
 
+    public StockRecord getAgentStock(Long productId, Long agentId) {
+        return dsl.selectFrom(STOCK)
+                .where(STOCK.PRODUCT_ID.eq(productId))
+                .and(STOCK.AGENT_ID.eq(agentId))
+                .fetchOne();
+    }
+
     public List<StockRecord> findAgentStock(Long agentId) {
         return dsl.selectFrom(STOCK)
                 .where(STOCK.AGENT_ID.eq(agentId))
@@ -83,13 +93,6 @@ public class StockRepository {
         }
     }
 
-    public StockRecord getAgentStock(Long productId, Long agentId) {
-        return dsl.selectFrom(STOCK)
-                .where(STOCK.PRODUCT_ID.eq(productId))
-                .and(STOCK.AGENT_ID.eq(agentId))
-                .fetchOne();
-    }
-
     public int decreaseAgentStock(Long productId, Long agentId, int quantity) {
         return dsl.update(STOCK)
                 .set(STOCK.QUANTITY, STOCK.QUANTITY.minus(quantity))
@@ -97,5 +100,18 @@ public class StockRepository {
                 .and(STOCK.AGENT_ID.eq(agentId))
                 .and(STOCK.QUANTITY.ge(quantity))
                 .execute();
+    }
+
+    public BigDecimal calculateAgentStockValue(Long agentId) {
+        var result = dsl.select(DSL.sum(PRODUCTS.PRICE.mul(STOCK.QUANTITY)))
+                .from(STOCK)
+                .join(PRODUCTS)
+                .on(PRODUCTS.ID.eq(STOCK.PRODUCT_ID))
+                .where(STOCK.AGENT_ID.eq(agentId))
+                .fetchOne();
+
+        return result == null || result.value1() == null
+                ? BigDecimal.ZERO
+                : result.value1();
     }
 }
