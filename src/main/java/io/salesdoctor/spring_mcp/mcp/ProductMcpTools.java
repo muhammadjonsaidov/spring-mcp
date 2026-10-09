@@ -20,13 +20,14 @@ public class ProductMcpTools {
     }
 
     @McpTool(name = "createProduct",
-            description = "Yangi mahsulot yaratadi")
+            description = "Yangi mahsulot yaratadi (kategoriya ID si bilan)")
     public String createProduct(
             @McpToolParam(description = "Mahsulot nomi") String name,
             @McpToolParam(description = "SKU (unikal kod)") String sku,
-            @McpToolParam(description = "Narxi (so'mda)") BigDecimal price
+            @McpToolParam(description = "Narxi (so'mda)") BigDecimal price,
+            @McpToolParam(description = "Kategoriya ID si (ixtiyoriy)") Long categoryId
     ) {
-        ProductsRecord product = productRepository.createProduct(name, sku, price, null);
+        ProductsRecord product = productRepository.createProduct(name, sku, price, categoryId);
         return format(product);
     }
 
