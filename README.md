@@ -2,7 +2,7 @@
 
 An MCP (Model Context Protocol) server built with Spring Boot 4 / Spring AI 2, exposing
 the **SalesDoctor** sales-data domain (territories, agents, customers, orders, payments,
-products, categories, stock) as callable tools for AI clients.
+products, categories, stock, returns, KPI targets) as callable tools for AI clients.
 
 The server speaks the **streamable HTTP** MCP protocol at `http://localhost:8888/mcp`
 and backs its tools with PostgreSQL via jOOQ + Flyway migrations.
@@ -87,6 +87,15 @@ Flyway `V1__init_schema.sql` creates the following tables:
 `territories`, `agents`, `customers`, `categories`, `products`, `stock`, `orders`,
 `order_items`, `payments` — with supporting indexes.
 
+Later migrations extend the schema:
+
+- `V6__alter_returns_table.sql` — creates `returns` (customer/order/product, quantity,
+  amount, agent, `PENDING`/`APPROVED`/`REJECTED` status, `resolved_at`) with indexes on
+  customer, product and status
+- `V7__create_kpi_targets_table.sql` — creates `kpi_targets` (per-agent target vs.
+  achieved amount for a period, unique per agent/period) with indexes
+- `V8__add_reason_to_returns.sql` — adds a free-text `reason` column to `returns`
+
 Seed data:
 
 - `V2__seed_stock.sql` — 100 units of `MAIN` warehouse stock for every active product
@@ -99,7 +108,7 @@ Seed data:
 
 Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `@Component` classes in `io.salesdoctor.spring_mcp.mcp`. Descriptions are in Uzbek.
-67 tools are exposed in total.
+84 tools are exposed in total.
 
 ### Territories — `TerritoryMcpTools`
 
@@ -122,7 +131,8 @@ Tools are declared with Spring AI's `@McpTool` / `@McpToolParam` annotations on
 `createOrder`, `getOrder`, `getOrderByNumber`, `listOrdersByCustomer`,
 `listOrdersByAgent`, `listRecentOrders`, `updateOrderStatus`
 
-Creating an order also increases the customer's `debt_amount` by the order total.
+Creating an order also increases the customer's `debt_amount` by the order total and
+adds that total to the agent's active KPI target (`achieved_amount`), if one covers today.
 
 ### Payments — `PaymentMcpTools`
 
@@ -156,17 +166,35 @@ warehouse) both validate the quantity and the available stock before mutating an
 `dailySalesReport`, `topProductsReport`, `agentKpiReport`, `debtorsReport`,
 `salesByTerritoryReport`, `overallStatsReport`, `customerSummaryReport`
 
+### Returns — `ReturnMcpTools`
+
+`createReturn`, `approveReturn`, `rejectReturn`, `getReturn`, `listReturnsByCustomer`,
+`listReturnsByStatus`, `listPendingReturns`, `listReturnsByAgent`, `listRecentReturns`
+
+`createReturn` records a `PENDING` return. `approveReturn` increases the warehouse stock
+(via `upsertWarehouseStock`) and reduces the customer's debt; `rejectReturn` records a
+reason. Only `PENDING` returns can be approved or rejected.
+
+### KPI targets — `KpiTargetMcpTools`
+
+`createKpiTarget`, `getKpiTarget`, `listKpiTargetsByAgent`, `listAllKpiTargets`,
+`getAgentKpiProgress`, `updateKpiAchieved`, `updateKpiTargetAmount`, `deleteKpiTarget`
+
+A KPI target is unique per agent and period. Order creation bumps the active target's
+`achieved_amount`, and `getAgentKpiProgress` reports the achieved-vs-target percentage
+for a given date.
+
 ## Project layout
 
 ```
 src/main/java/io/salesdoctor/spring_mcp/
 ├── SpringMcpApplication.java      # entry point
-├── mcp/                           # @McpTool classes (territory, agent, customer,
-│                                  #  order, payment, product, category, stock, report)
+├── mcp/                           # @McpTool classes (territory, agent, customer, order,
+│                                  #  payment, product, category, stock, report, return, kpi)
 └── repository/                    # jOOQ-backed repositories
 src/main/resources/
 ├── application.yaml
-└── db/migration/                  # Flyway migrations (V1 schema, V2–V5 seed)
+└── db/migration/                  # Flyway migrations (V1 schema, V2–V5 seed, V6–V8 schema)
 ```
 
 ## Notes

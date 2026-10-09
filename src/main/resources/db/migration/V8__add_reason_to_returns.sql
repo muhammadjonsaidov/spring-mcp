@@ -1,0 +1,2 @@
+ALTER TABLE returns
+    ADD COLUMN IF NOT EXISTS reason TEXT;

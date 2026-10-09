@@ -19,10 +19,12 @@ public class OrderRepository {
 
     private final DSLContext dsl;
     private final StockRepository stockRepository;
+    private final KpiTargetRepository kpiTargetRepository;
 
-    public OrderRepository(DSLContext dsl, StockRepository stockRepository) {
+    public OrderRepository(DSLContext dsl, StockRepository stockRepository, KpiTargetRepository kpiTargetRepository) {
         this.dsl = dsl;
         this.stockRepository = stockRepository;
+        this.kpiTargetRepository = kpiTargetRepository;
     }
 
     @Transactional
@@ -97,6 +99,13 @@ public class OrderRepository {
                 .set(CUSTOMERS.DEBT_AMOUNT, CUSTOMERS.DEBT_AMOUNT.plus(totalAmount))
                 .where(CUSTOMERS.ID.eq(customerId))
                 .execute();
+
+        if (agentId != null) {
+            var kpi = kpiTargetRepository.findByAgentAndDate(agentId, LocalDate.now());
+            if (kpi != null) {
+                kpiTargetRepository.addAchievedAmount(kpi.getId(), totalAmount);
+            }
+        }
 
         return order;
     }
